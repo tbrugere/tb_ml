@@ -1,46 +1,22 @@
-from ..models import load_model
-from ..models.base_classes import Unsupervised
-from ..datasets import load_dataset
-
-from collections.abc import Sequence
+from collections.abc import Sequence, namedtuple
 from typing import Type, Any, Union, Optional, Callable
 
-from dataclasses import dataclass
-from io import StringIO
 from logging import info
 
-import numpy as np
-import matplotlib.pyplot as plt
 import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
-from torch.utils import tensorboard
-from tqdm import tqdm
 
-@dataclass
-class TrainingHook():
-
-    interval: int = 1
-
-    def __call__(self, **kwargs) -> dict:
-        n_iteration = kwargs["iteration"]
-
-        new_values = None
-        if n_iteration % self.interval == 0:
-            new_values = self.hook(**kwargs)
-
-        if new_values is None:
-            new_values = {}
-
-        return {**kwargs, **new_values}
-
-    def hook(self, **kwargs) -> Optional[dict]:
-        pass
+from ..models import load_model
+from ..models.base_classes import Model
+from ..datasets import load_dataset
+from .training_hooks import TrainingHook
+from ..environment import Environment, HierarchicEnvironment
 
 
 class Trainer():
 
-    model: nn.Module
+    model: Model
     optimizer: optim.Optimizer
     data: DataLoader
     
@@ -49,12 +25,20 @@ class Trainer():
 
     """The total number of iterations to run (ie n_epochs * len(data))"""
     total_iter: int
+    n_epochs: int
+
+    """How many minibatches to run for one optim step"""
+    fake_batch_size: int
 
     """The number of the current iteration"""
     iteration_n: int = 0
+    epoch_n: int = 0
 
+    global_env: Environment
+    epoch_env: Environment
+    iter_env: Environment
 
-    def __init__(self, model: nn.Module, 
+    def __init__(self, model: Model, 
                  data: Union[Dataset, DataLoader, Sequence],
                  n_epochs:int,
                  optimizer: Type[optim.Optimizer] | str = optim.Adam,
@@ -64,6 +48,8 @@ class Trainer():
                  device = "cuda:0", 
                  step_hooks: list[TrainingHook] = [], 
                  epoch_hooks: list[TrainingHook] = [],
+                 environment_variables: dict = {}, 
+                 fake_batch_size:int = 1
                  ):
         #TODO: take a train and validation set, or do the separation in-house
 
@@ -78,151 +64,111 @@ class Trainer():
         assert isinstance(optimizer, type)
         assert issubclass(optimizer, torch.optim.Optimizer)
 
+        ################ Setup Environments
+        self.global_env = Environment()
+        self.global_env.record_dict(environment_variables)
+        self.epoch_env = HierarchicEnvironment(parent=self.global_env)
+        self.iter_env = HierarchicEnvironment(parent=self.epoch_env)
+
+        ################ Actual training stuff
         self.optimizer = optimizer(params=model.parameters(), **optimizer_arguments)
         self.model = model.to(device)
-        self.loss = loss
+        self.loss = loss; 
         self.data = data
-
+        self.total_iter = len(data) * n_epochs
         self.n_epochs = n_epochs
+        self.fake_batch_size = fake_batch_size
+        self.device = device
 
+
+        ################ set hooks
+        for hook in step_hooks:
+            hook.env = self.iter_env
+        for hook in epoch_hooks:
+            hook.env = self.epoch_env
         self.step_hooks = step_hooks
         self.epoch_hooks = epoch_hooks
 
-        self.total_iter = len(data) * n_epochs
 
-        self.device = device
-
+        ################ Record stuff in environment
+        if loss is not None:
+            self.global_env.record("loss_fun", loss)
+        self.global_env.record_dict(dict(
+            model=model,
+            total_iter = self.total_iter,
+            n_epochs=n_epochs,
+            device=device, 
+            data=self.data
+        ))
     @classmethod
-    def from_config(cls, config):
-        raise NotImplemented #TODO
+    def from_config(cls, config: dict):
+        raise NotImplementedError #TODO
 
 
-    def step(self, batch, gt=None):
+    def step(self, batch):
+        self.iter_env.reset()
+        self.iter_env.record_dict(dict(
+            iteration=self.iteration_n
+        ))
         self.model.train()
         self.optimizer.zero_grad()
-        batch = batch.to(self.device)
 
-        if gt is not None:
-            gt = gt.to(self.device)
+        batch = self.move_batch_to(batch, self.device)
+        match batch:
+            case dict():
+                self.iter_env.record_dict(batch)
+            case namedtuple():
+                self.iter_env.record_dict(batch._asdict())
+        self.iter_env.record("batch", batch)
 
-        match (self.loss, gt):
-            case (None, None):
-                prediction=None
-                loss = self.model.forward(batch, loss=True) #unsupervised
-            case (None, _):
-                prediction=None
-                loss = self.model.forward(batch, gt) #supervised, outputs loss
-            case (loss_function, None):
-                prediction = self.model.forward(batch, loss=False) #unsupervised
-                loss = loss_function(prediction, batch)
-            case _:
-                prediction = self.model.forward(batch)# supervised, outputs prediction
-                loss = self.loss(prediction, gt)
-
+        loss = self.iter_env.run_function(self.model.compute_loss, 
+                                          record_result_as="loss")
         loss.backward()
-
-        self.optimizer.step()
-
-        hook_parameters = {
-                "loss": loss, 
-                "prediction": prediction, 
-                "iteration": self.iteration_n,
-                "total_iter": self.total_iter,
-                "trainer": self, #trainer passes itself. 
-                                # this allows hooks to modify trainer parameters
-                                # eg for learning rate scheduling
-                "type": "step" #for hooks that act differently on step/epoch
-            }
+        
+        if (self.iteration_n - 1) % self.fake_batch_size == 0:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
 
         for hook in self.step_hooks:
-            hook_parameters = hook(**hook_parameters)
+            hook()
 
     def epoch(self):
-        for point in self.data:
-            if isinstance(self.model, Unsupervised):
-                self.step(point)
-                continue
-            batch, gt = point
-            self.step(batch, gt)
+        self.epoch_env.reset()
+        self.epoch_env.record_dict(dict(
+            last_iteration=self.iteration_n, 
+            epoch= self.epoch_n
+        ))
+        for batch in self.data:
+            self.step(batch)
+            self.iteration_n += 1
 
-        hook_parameters = {
-                "trainer": self, 
-                "type": "epoch",
-                "iteration": self.iteration_n,
-                "total_iter": self.total_iter,
-        }
         for hook in self.epoch_hooks:
-            hook_parameters = hook(**hook_parameters)
+            hook()
 
     def train(self):
         model = self.model
         if hasattr(model, "do_pretraining"):
             info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
-            model.do_pretraining() #TODO pass arguments to that. EG DATA
+            self.global_env.run(model.do_pretraining)
 
         if hasattr(model, "do_training"):
             info(f"Model {model} has train method, using that")
             assert callable(model.do_training), "model do_training is not callable!"
-            model.do_training() #TODO pass arguments to that. EG DATA, or hooks
+            self.global_env.run(model.do_training)
             return
 
-        for epoch_number in range(self.n_epochs):
+        for _ in range(self.n_epochs):
             self.epoch()
+            self.epoch_n += 1
 
-
-
-class LoggerHook(TrainingHook):
-    def hook(self, **kwargs):
-        s = StringIO()
-        for key, value in kwargs.items():
-            if hasattr(value, "item") and value.numel() == 1:
-                value = value.item()
-            s.write(f"{key}= {value}, ")
-
-        info(s.getvalue())
-
-
-class CurveHook(TrainingHook):
-
-    variable: str
-    values: list
-
-    def __init__(self, interval:int =1, variable="loss"):
-        super().__init__(interval)
-        self.variable = variable
-        self.values = []
-
-    def hook(self, **kwargs):
-        val = kwargs[self.variable]
-        if hasattr(val, "item"):
-            val = val.item()
-        self.values.append(val)
-
-    def draw(self, ax = None): #todo: potentially output to file
-        if ax is None:
-            ax = plt.gca()
-        values = self.values
-        ax.set_title(self.variable)
-        ax.set_ylabel(self.variable)
-        ax.plot(np.arange(len(values)) * self.interval, values)
-
-
-
-
-class TqdmHook(TrainingHook):
-    progressbar: Optional[tqdm] = None
-
-    def __init__(self, interval:int =1, tqdm=tqdm):
-        super().__init__(interval)
-        self.tqdm = tqdm
-
-    def hook(self, **kwargs):
-        if self.progressbar is None:
-            totaliter =kwargs["total_iter"]
-            self.progressbar = self.tqdm(total=totaliter)
-        self.progressbar.update()
-
-class TensorboardHook(TrainingHook):
-
+    @staticmethod
+    def move_batch_to(batch, device):
+        match batch:
+            case (*seq,):
+                return type(seq)(i.to(device) for i in seq)
+            case dict():
+                return {key: value.to(device) for key, value in batch.items()}
+            case _:
+                return batch.to(device)
 
