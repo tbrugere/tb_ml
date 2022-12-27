@@ -78,7 +78,7 @@ and if I want to get the value of kl, mse,
 Instead of passing around a humo
 """
 
-from typing import TypeAlias, Any, Optional, Callable
+from typing import TypeAlias, TypeVar, Any, Optional, Callable
 
 from collections import defaultdict
 from collections.abc import Collection
@@ -88,9 +88,17 @@ from io import StringIO
 
 Scope: TypeAlias = tuple[str, ...]
 
+T = TypeVar("T") 
+
+def scopevar_of_str(s: str) -> tuple[Scope, str] :
+    path = s.split("/")
+    return tuple(path[:-1]), path[-1]
+
+def str_of_scopevar(scope: Scope, var: str) -> str:
+    return "/".join((*scope, var))
+    
+
 class Environment():
-
-
     data: defaultdict[str, dict[Scope, Any]]
 
     def __init__(self):
@@ -133,9 +141,9 @@ class Environment():
     def __getattr__(self, key: str):
         return self.get(key)
 
-    def run_function(self, f: Callable, 
+    def run_function(self, f: Callable[..., T], 
                      record_result_as:str | tuple[str] | None = None, 
-                     *args, **kwargs):
+                     *args, **kwargs) -> T:
         """
         runs function f gathering its arguments from different sources
         (from higher to lower priority):
