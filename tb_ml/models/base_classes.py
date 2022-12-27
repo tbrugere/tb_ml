@@ -19,11 +19,11 @@ class Model(nn.Module, HasEnvironmentMixin):
 
     def predict(self, x) -> torch.Tensor: 
         x;
-        raise NotImplemented
+        raise NotImplementedError
 
     def compute_loss(self, x) -> torch.Tensor:
         x;
-        raise NotImplemented("This model doesn’t have a loss function. "
+        raise NotImplementedError("This model doesn’t have a loss function. "
                              "You should pass one to the trainer")
 
 class Supervised(Model):
@@ -39,7 +39,7 @@ class Supervised(Model):
         This is the function you
         """
         x;
-        raise NotImplemented
+        raise NotImplementedError
 
     def forward(self, x) -> torch.Tensor: 
         y = self.predict(x)
@@ -56,7 +56,7 @@ class Supervised(Model):
 
 class Unsupervised(Model):
     def forward(self, x, loss=False):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 
@@ -65,11 +65,11 @@ class Unsupervised(Model):
 #     """Base class for autoencoders"""
 #     def encode(self, x) -> torch.Tensor:
 #         x;
-#         raise NotImplemented
+#         raise NotImplementedError
 #
 #     def decode(self, z) -> torch.Tensor:
 #         z;
-#         raise NotImplemented
+#         raise NotImplementedError
 #
 #     def predict(self, x):
 #         z = self.encode(x)
