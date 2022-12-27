@@ -78,10 +78,13 @@ and if I want to get the value of kl, mse,
 Instead of passing around a humo
 """
 
-from typing import TypeAlias, Any, Optional
+from typing import TypeAlias, Any, Optional, Callable
 
 from collections import defaultdict
+from collections.abc import Collection
 from dataclasses import dataclass, field
+from inspect import signature, Parameter
+from io import StringIO
 
 Scope: TypeAlias = tuple[str, ...]
 
@@ -99,25 +102,112 @@ class Environment():
     def record(self, key: str, value: Any, scope: Scope=()):
         self.data[key][scope] = value
 
-    def get(self, key:str, scope: Optional[Scope]=None):
+    def record_dict(self, d: dict, scope: Scope = ()):
+        for key, value in d.items():
+            self.record(key, value, scope)
+
+    def get(self, key:str, scope: Scope=()):
+        """
+        Returns the value for key `key` under scope `scope`.
+
+        This function also searches subscopes of `scope`.
+        The value with the highest (shortest) scope is returned
+
+        Returns None if no value is found
+        """
         values: dict[Scope, Any] = self.data[key]
-        if scope is not None:
-            return values.get(scope, None)
+        scope_len = len(scope)
+        starts_with_scope = lambda s: s[:scope_len] == scope
         #otherwise return the item with the highest scope
         max_scope: Optional[Scope] = None
         best_item: Any = None
         for item_scope, item in values.items():
-            if max_scope is None or len(item_scope) < len(max_scope):
-                max_scope = item_scope
-                best_item = item
+            if not starts_with_scope(item_scope):
+                continue
+            if max_scope is not None and len(item_scope) >= len(max_scope):
+                continue 
+            max_scope = item_scope
+            best_item = item
         return best_item
 
     def __getattr__(self, key: str):
         return self.get(key)
 
+    def run_function(self, f: Callable, 
+                     record_result_as:str | tuple[str] | None = None, 
+                     *args, **kwargs):
+        """
+        runs function f gathering its arguments from different sources
+        (from higher to lower priority):
+
+        - the given `args` and `kwargs`
+        - variables with the same name in the environment
+        - the default variables from the function
+        """
+        sig = signature(f)
+
+        arguments = sig.bind_partial(args, kwargs)
+        for param in signature.parameters:
+            if (param.name not in arguments 
+                    and param.name in self.data
+                    and param.kind != Parameter.POSITIONAL_ONLY
+                ):
+                arguments.arguments[param.name] = self.get(param.name)
+            
+
+        f_args, f_kwargs = arguments.args, arguments.kwargs
+
+        ret_val = f(*f_args, **f_kwargs)
+
+        match record_result_as:
+            case None:
+                pass
+            case (*record_names,):
+                assert isinstance(ret_val, Collection), f"record_result_as is a tuple {record_result_as}, but only one value was returned by f"
+                assert len(ret_val) == len(record_names), f"record_result_as is not the same length as the number of returned values {ret_val=}, {record_result_as=}"
+                for key, value in zip(record_names, ret_val):
+                    self.record(key=key, value=value)
+            case str() as record_name:
+                self.record(key=record_name, value=ret_val)
+
+        return ret_val
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.data})"
+
+    def __str__(self) -> str:
+        sio = StringIO(f"{self.__class__.__name__} with\n")
+        scoped_key_values: list[tuple[tuple[str, ...], Any]] = []
+        for key, values in self.data.items():
+            for scope, value in values.items():
+                scoped_key_values.append((
+                    (*scope, key),
+                    value
+                    ))
+        scoped_key_values.sort()
+        for scoped_key, value in scoped_key_values:
+            sio.write(f' - {"/".join(scoped_key)}: {value}')
+
+        return sio.getvalue()
+
     # no setattr. This is intended, there is no reason you should setattr
     # in a non-scoped environment
-        
+
+class HierarchicEnvironment(Environment):
+    """An environment that has read-access to data from another 'parent' 
+    environment
+    """
+    parent: Optional[Environment]
+
+    def __init__(self, parent:Optional[Environment]):
+        self.parent = parent
+    
+    def get(self, key:str, scope: Scope= ()):
+        res = super().get(key, scope)
+        if res is not None or self.parent is None:
+            return res
+        return self.parent.get(key, scope)
+
 
 @dataclass
 class ScopedEnvironment():
