@@ -38,6 +38,12 @@ class CacheTransform(Transform[Element, Element]):
         
         self.cached_data = list(inner_iter)
 
+    def __getitem__(self, i):
+        return self.cached_data[i]
+
+    def __len__(self):
+        return len(self.cached_data)
+
 
 
 @transform_register
