@@ -1,2 +1,3 @@
 # tb_ml
-Misc tools for machine learning with pytorch
+
+Misc tools, models, and data structures I use for machine learning with pytorch. 
