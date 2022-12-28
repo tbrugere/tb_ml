@@ -2,7 +2,7 @@
 """
 from math import pi
 import torch
-from torch.utils.data import IterableDataset
+from .base_classes import Dataset
 from torch import cos, sin
 
 from .registration import register
@@ -29,7 +29,7 @@ def embed_torus_3D(t, r1 = 1, r2 = .2):
     ], dim=-1)
 
 @register
-class Torus4D(IterableDataset):
+class Torus4D(Dataset[torch.Tensor]):
 
     size: int
     batch_size: int
@@ -48,7 +48,7 @@ class Torus4D(IterableDataset):
         return self.size // self.batch_size
 
 @register
-class Torus3D(IterableDataset):
+class Torus3D(Dataset[torch.Tensor]):
 
     size: int
     batch_size: int
@@ -67,7 +67,7 @@ class Torus3D(IterableDataset):
         return self.size // self.batch_size
 
 @register
-class Circle2D(IterableDataset):
+class Circle2D(Dataset[torch.Tensor]):
 
     size: int
     batch_size: int
