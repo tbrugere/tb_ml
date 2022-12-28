@@ -36,7 +36,7 @@ class Supervised(Model):
 
     def predict(self, x) -> torch.Tensor: 
         """
-        This is the function you
+        This is the function you should edit
         """
         x;
         raise NotImplementedError
