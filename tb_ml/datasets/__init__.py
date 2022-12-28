@@ -9,6 +9,7 @@ Datasets
 """
 
 from . import transforms
+from . import simple_shapes
 from ..register import Loader
 from .registration import register, transform_register
 
