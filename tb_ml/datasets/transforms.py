@@ -6,13 +6,39 @@ Contrarily to the ones seen in pytorch
 Basically they are actually datasets, which take other datasets as parameter.
 
 """
+from typing import Optional, Iterator
+
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from dataclasses import dataclass, field
+import itertools as it
+
 import torch
 
 from .base_classes import Transform, Dataset, Element, Element2
 from .registration import transform_register
+
+@transform_register
+@dataclass
+class CacheTransform(Transform[Element, Element]):
+    """
+    Transforms an iterable dataset, 
+    into an indexable (subscriptable) dataset
+    by caching n values
+    """
+
+    inner: Dataset[Element]
+    cached_data: list[Element]
+
+    def __init__(self, inner: Dataset[Element], n: Optional[int]=None):
+        self.inner = inner
+        inner_iter: Iterator[Element] = iter(inner)
+        if n is not None:
+            inner_iter = it.islice(inner_iter, n)
+        
+        self.cached_data = list(inner_iter)
+
+
 
 @transform_register
 @dataclass

@@ -12,8 +12,12 @@ class Dataset(torch_data.Dataset, Generic[Element]):
     def __getitem__(self, i) -> Element:
         raise NotImplementedError
 
-    def __iter__(self) -> Iterator[Element]:
+    def __len__(self):
         raise NotImplementedError
+
+    def __iter__(self) -> Iterator[Element]:
+        for i in range(len(self)):
+            yield self[i]
 
 
 @dataclass
