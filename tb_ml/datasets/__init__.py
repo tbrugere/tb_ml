@@ -9,7 +9,7 @@ Datasets
 """
 
 from ..register import Loader
-from .registration import register
+from .registration import register, transform_register
 
 load_dataset = Loader(register)
 """Dataset loader (used by the automated pipeline)"""
