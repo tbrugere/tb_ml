@@ -1,6 +1,4 @@
-from torch.utils.data import Dataset
-
-from .base_classes import Transform
+from .base_classes import Transform, Dataset
 from ..register import Register
 
 register : Register[Dataset]= Register(Dataset)

@@ -8,6 +8,7 @@ Datasets
 
 """
 
+from . import transforms
 from ..register import Loader
 from .registration import register, transform_register
 
