@@ -133,6 +133,13 @@ def print_function_times():
         print(f"{function.__name__}: executed {n} times - mean time {mean} seconds")
 
 
+def all_equal(*args):
+    match args:
+        case ():
+            return True
+        case (x0, *rest):
+            return all(i == x0 for i in rest)
+
 #-----------------------------------------------------------
 # Pytorch stuff
 #-----------------------------------------------------------
