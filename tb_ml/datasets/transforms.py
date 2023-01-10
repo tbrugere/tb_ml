@@ -6,17 +6,86 @@ Contrarily to the ones seen in pytorch
 Basically they are actually datasets, which take other datasets as parameter.
 
 """
+from typing import Optional, Iterator, Callable, Generic, TypeVar, NamedTuple
+
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from dataclasses import dataclass, field
+import itertools as it
+
 import torch
 
 from .base_classes import Transform, Dataset, Element, Element2
 from .registration import transform_register
 
+NamedTupleElement = TypeVar("NamedTupleElement", bound=NamedTuple)
+
+@transform_register
+class CacheTransform(Transform[Element, Element]):
+    """
+    Transforms an iterable dataset, 
+    into an indexable (subscriptable) dataset
+    by caching n values
+    """
+
+    inner: Dataset[Element]
+    cached_data: list[Element]
+
+    def __init__(self, inner: Dataset[Element], n: Optional[int]=None):
+        self.inner = inner
+        inner_iter: Iterator[Element] = iter(inner)
+        if n is not None:
+            inner_iter = it.islice(inner_iter, n)
+        
+        self.cached_data = list(inner_iter)
+
+    def __getitem__(self, i):
+        return self.cached_data[i]
+
+    def __len__(self):
+        return len(self.cached_data)
+
 @transform_register
 @dataclass
-class RenameTransform(Transform[Element, Element2]):
+class FunctionTransform(Generic[Element, Element2], Transform[Element, Element2]):
+    """Simple transform that applies a function to every element of the dataset
+
+    """
+
+    f: Callable[[Element,], Element2]
+    inner: Dataset[Element]
+
+    def __getitem__(self, i) -> Element2:
+        return self.f(self.inner[i])
+    
+    def __iter__(self) -> Iterator[Element2]:
+        for elem in self.inner:
+            yield self.f(elem)
+
+@transform_register
+class MultipleFunctionTransform(FunctionTransform[NamedTupleElement, NamedTupleElement]):
+
+    functions: dict[int | str, Callable]
+
+    def __init__(self, inner, functions):
+        self.inner = inner
+        self.functions = functions
+
+    def f(self, inner_value: NamedTupleElement) -> NamedTupleElement:
+        result = {}
+        for i, (elem_name, elem) in enumerate(inner_value._asdict().items()):
+            if i in self.functions:
+                mapped_elem = self.functions[i](elem)
+            elif elem_name in self.functions:
+                mapped_elem = self.functions[elem_name](elem)
+            else:
+                mapped_elem = elem
+            result[elem_name] = mapped_elem
+        return type(inner_value)(**result)
+
+
+@transform_register
+class RenameTransform(FunctionTransform[Element, NamedTupleElement]):
     """Rename the outputs of a dataset
 
     Converts a dataset whose elements are tuples, dicts, or namedtuples to
@@ -52,16 +121,17 @@ class RenameTransform(Transform[Element, Element2]):
     - A string if datasets’s elements are objects 
         (in which case __getattr__ is used)
 
-    """
+     """
     inner: Dataset[Element]
     name_map: dict[int | str, str]
-    datapoint_type: type[Element2] = field(init=False)
+    datapoint_type: type[NamedTupleElement] = field(init=False)
 
-    def __post_init__(self):
-        self.element_type= namedtuple("datapoint", self.name_map.values())
+    def __init__(self, inner, name_map):
+        self.inner = inner
+        self.name_map = name_map
+        self.datapoint_type= namedtuple("datapoint", self.name_map.values())
 
-    def __getitem__(self, index) -> Element2:
-        inner_value: Element = self.inner[index]
+    def f(self, inner_value: Element) -> NamedTupleElement:
         d = {}
         for key, field_name in self.name_map.items():
             match key:
