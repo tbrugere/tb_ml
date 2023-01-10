@@ -5,6 +5,7 @@ from io import StringIO
 from logging import info
 
 import numpy as np
+import matplotlib.axes
 import matplotlib.pyplot as plt
 from torch.utils import tensorboard
 from tqdm import tqdm
@@ -65,9 +66,10 @@ class CurveHook(TrainingHook):
             val = val.item()
         self.values.append(val)
 
-    def draw(self, ax = None): #todo: potentially output to file
+    def draw(self, ax: matplotlib.axes.Axes|None = None): #todo: potentially output to file
         if ax is None:
             ax = plt.gca()
+            assert isinstance(ax, matplotlib.axes.Axes)
         values = self.values
         ax.set_title(self.variable)
         ax.set_ylabel(self.variable)
