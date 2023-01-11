@@ -154,8 +154,8 @@ class Environment():
         """
         sig = signature(f)
 
-        arguments = sig.bind_partial(args, kwargs)
-        for param in signature.parameters:
+        arguments = sig.bind_partial(*args, **kwargs)
+        for param in sig.parameters:
             if (param.name not in arguments 
                     and param.name in self.data
                     and param.kind != Parameter.POSITIONAL_ONLY
@@ -208,10 +208,11 @@ class HierarchicEnvironment(Environment):
     parent: Optional[Environment]
 
     def __init__(self, parent:Optional[Environment]):
+        super().__init__()
         self.parent = parent
     
     def get(self, key:str, scope: Scope= ()):
-        res = super().get(key, scope)
+        res = Environment.get(self, key, scope)
         if res is not None or self.parent is None:
             return res
         return self.parent.get(key, scope)

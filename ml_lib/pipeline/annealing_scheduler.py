@@ -42,7 +42,7 @@ class AnnealingScheduler():
         return self.beta_0
 
     @classmethod
-    def draw(cls, n_iterations: int, *args, **kwargs):
+    def draw(cls, n_iterations: int | None = None, *args, **kwargs):
         """Draws this scheduler on current matpltolib ax 
         (use plt.sca if needed)
 
@@ -52,6 +52,9 @@ class AnnealingScheduler():
         """
         import matplotlib.pyplot as plt
         scheduler = cls(*args, **kwargs)
+        if n_iterations is None:
+            n_iterations = scheduler.T_0 #type:ignore
+            assert isinstance(n_iterations, int)
         values = [scheduler.step() for _ in range(n_iterations)]
         plt.plot(values)
 
@@ -142,8 +145,8 @@ class SigmoidScheduler(MonotonicScheduler):
         #but the only way I know that looks like a sigmoid and goes from 0 to 1
         #on [0, 1]
 
-
 class CosineScheduler(MonotonicScheduler):
     @staticmethod
     def f(x):
         return 1 - cos(x * pi / 2)
+
