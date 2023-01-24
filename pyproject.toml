@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "ml-lib"
+version = "0.1.0"
+description = "boilerplate for ml projects"
+authors = ["Tristan BRUGÈRE <67050900+nephanth@users.noreply.github.com>"]
+license = "Cecill-B"
+readme = "README.md"
+packages = [{include = "ml_lib"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+torch = "^1.13.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
