@@ -1,4 +1,5 @@
-from collections.abc import Sequence, namedtuple
+from collections.abc import Sequence
+from collections import namedtuple
 from typing import Type, Any, Union, Optional, Callable
 
 from logging import info
@@ -46,6 +47,7 @@ class Trainer():
                  loss = None,
                  lr_scheduler = None, 
                  device = "cuda:0", 
+                 split_data = (80, 10, 10),
                  step_hooks: list[TrainingHook] = [], 
                  epoch_hooks: list[TrainingHook] = [],
                  environment_variables: dict = {}, 
@@ -57,6 +59,10 @@ class Trainer():
 
         if lr_scheduler is not None:
             raise NotImplemented
+        match data:
+            case DataLoader():
+                pass
+            case Dataset
         if not isinstance(data, DataLoader):
             raise NotImplemented #TODO wrap it in a DataLoader and split it ?
         if isinstance(optimizer, str):

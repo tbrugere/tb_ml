@@ -138,8 +138,24 @@ class Environment():
             best_item = item
         return best_item
 
+    def contains(self, key:str, scope: Scope=()) -> bool:
+        if key not in self.data:
+            return False
+        values = self.data[key]
+        scope_len = len(scope)
+        starts_with_scope = lambda s: s[:scope_len] == scope
+        for item_scope in values:
+            if starts_with_scope(item_scope):
+                return True
+        return False
+
+
     def __getattr__(self, key: str):
         return self.get(key)
+
+    def __contains__(self, key:str):
+        return self.contains(key)
+
 
     def run_function(self, f: Callable[..., T], 
                      record_result_as:str | tuple[str] | None = None, 
@@ -155,9 +171,9 @@ class Environment():
         sig = signature(f)
 
         arguments = sig.bind_partial(*args, **kwargs)
-        for param in sig.parameters:
-            if (param.name not in arguments 
-                    and param.name in self.data
+        for param in sig.parameters.values():
+            if (param.name not in arguments.arguments 
+                    and param.name in self
                     and param.kind != Parameter.POSITIONAL_ONLY
                 ):
                 arguments.arguments[param.name] = self.get(param.name)
@@ -216,6 +232,11 @@ class HierarchicEnvironment(Environment):
         if res is not None or self.parent is None:
             return res
         return self.parent.get(key, scope)
+
+    def contains(self, key:str, scope: Scope = ()) -> bool:
+        return Environment.contains(self, key, scope)\
+                or (self.parent is not None 
+                    and  self.parent.contains(key, scope))
 
 
 @dataclass

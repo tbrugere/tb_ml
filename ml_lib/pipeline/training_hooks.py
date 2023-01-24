@@ -7,7 +7,6 @@ from logging import info
 import numpy as np
 import matplotlib.axes
 import matplotlib.pyplot as plt
-from torch.utils import tensorboard
 from tqdm import tqdm
 
 from ..environment import Environment, Scope, scopevar_of_str, str_of_scopevar
@@ -92,5 +91,10 @@ class TqdmHook(TrainingHook):
         self.progressbar.update()
 
 class TensorboardHook(TrainingHook):
-    pass
+    
+    def __init__(self):
+        from torch.utils import tensorboard
+        self.tensorboard = tensorboard
+
+        raise NotImplementedError
 
