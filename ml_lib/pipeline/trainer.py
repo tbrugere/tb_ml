@@ -62,7 +62,8 @@ class Trainer():
         match data:
             case DataLoader():
                 pass
-            case Dataset
+            case Dataset():
+                raise NotImplementedError
         if not isinstance(data, DataLoader):
             raise NotImplemented #TODO wrap it in a DataLoader and split it ?
         if isinstance(optimizer, str):
