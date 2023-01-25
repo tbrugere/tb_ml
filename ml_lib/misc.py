@@ -1,9 +1,11 @@
-from typing import Callable
+from typing import Callable, Sequence
 
+import functools as ft
 from functools import wraps
 from inspect import signature
 from logging import info
 from time import perf_counter
+import warnings
 
 from torch import nn
 
@@ -67,6 +69,10 @@ class UnionFindNoCompression(list):
 
 old_time = perf_counter()
 function_times: dict[Callable, list[tuple[float, dict]]] = dict()
+
+#------------------------------------------------------
+# simple profiling stuff
+#------------------------------------------------------
 
 def debug_time(out_string=None):
     """only works if is_debug is True
@@ -132,8 +138,89 @@ def print_function_times():
         mean = sum(time for time, _ in times) / n
         print(f"{function.__name__}: executed {n} times - mean time {mean} seconds")
 
+#------------------------------------------------------------------
+# random stuff that should be in the standard lib
+#------------------------------------------------------------------
+
+def merge_dicts(*dicts: dict) -> dict:
+    """merge dictionaries
+
+    merges the dicts, giving precedence to the last one, RECURSIVELY
+
+    I use this to merge configurations 
+    (so say you’ve loaded a default config with all fields, 
+     and a user config with some modified fields, you can merge them)
+
+    Args:
+        dicts: dictionaries
+
+    Returns:
+        dict: a dictionary containing all the keys in the dictionaries, with the value of the last argument containing that key
+    """
+    merged = {}
+    for d in dicts:
+        for key, value in d.items():
+            if isinstance(value, dict) and key in merged:
+                value = merge_dicts(merged[key], value)
+            merged[key] = value
+
+    return merged
+
+
+def unwrap_dict(d: dict, *keys):
+    """[TODO:summary]
+
+    asserts that the keys in d are the ones in the keys list, 
+    and returns the elements in that order
+
+    Args:
+        d: [TODO:description]
+    """
+    assert set(d.keys()) == set(keys), f"wrong set of keys, got {d.keys()}, expected {keys}"
+    return [d[key] for key in keys]
+    
+def deprecated(func):
+    """
+    shamelessly copy-pasted from https://stackoverflow.com/questions/2536307/decorators-in-the-python-standard-lib-deprecated-specifically
+
+    This is a decorator which can be used to mark functions
+    as deprecated. It will result in a warning being emitted
+    when the function is used."""
+    @ft.wraps(func)
+    def new_func(*args, **kwargs):
+        warnings.simplefilter('always', DeprecationWarning)  # turn off filter
+        warnings.warn("Call to deprecated function {}.".format(func.__name__),
+                      category=DeprecationWarning,
+                      stacklevel=2)
+        warnings.simplefilter('default', DeprecationWarning)  # reset filter
+        return func(*args, **kwargs)
+    return new_func
+
+def auto_repr(*fields: str):
+    """
+    decorator.
+
+    Creates an automatic __repr__ function for a class. useful for debugging since printing
+    Args:
+        fields: the fields to display in that repr
+    """
+
+    def repr(self, fields: Sequence[str]):
+        return f"""{self.__class__.__name__}({
+            ', '.join(f"{field}= {getattr(self, field)}" for field in fields)
+            })"""
+
+    def decorator(cls):
+        cls.__repr__ = ft.partialmethod(repr, fields=fields)
+        return cls
+
+    return decorator
 
 def all_equal(*args):
+    """
+    tests whether all the passed arguments are equal. 
+    useful for checking dimensions for a lot of vectors for ex
+    """
     match args:
         case ():
             return True
