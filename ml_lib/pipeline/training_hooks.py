@@ -1,13 +1,14 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from dataclasses import dataclass, field
 from io import StringIO
 from logging import info
 
 import numpy as np
-import matplotlib.axes
-import matplotlib.pyplot as plt
 from tqdm import tqdm
+
+if TYPE_CHECKING:
+    import matplotlib.axes
 
 from ..environment import Environment, Scope, scopevar_of_str, str_of_scopevar
 
@@ -58,6 +59,8 @@ class CurveHook(TrainingHook):
         super().__init__(interval)
         self.scope, self.variable = scopevar_of_str(variable)
         self.values = []
+        import matplotlib.pyplot as plt
+        self.plt = plt
 
     def hook(self):
         val = self.env.get(self.variable, self.scope)
@@ -67,7 +70,7 @@ class CurveHook(TrainingHook):
 
     def draw(self, ax: matplotlib.axes.Axes|None = None): #todo: potentially output to file
         if ax is None:
-            ax = plt.gca()
+            ax = self.plt.gca()
             assert isinstance(ax, matplotlib.axes.Axes)
         values = self.values
         ax.set_title(self.variable)
