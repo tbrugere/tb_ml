@@ -4,11 +4,11 @@ from dataclasses import dataclass, field
 from io import StringIO
 from logging import info
 
-import numpy as np
-from tqdm import tqdm
+
 
 if TYPE_CHECKING:
     import matplotlib.axes
+    from tqdm import tqdm
 
 from ..environment import Environment, Scope, scopevar_of_str, str_of_scopevar
 
@@ -68,7 +68,8 @@ class CurveHook(TrainingHook):
             val = val.item()
         self.values.append(val)
 
-    def draw(self, ax: matplotlib.axes.Axes|None = None): #todo: potentially output to file
+    def draw(self, ax: "matplotlib.axes.Axes|None" = None): #todo: potentially output to file
+        import numpy as np
         if ax is None:
             ax = self.plt.gca()
             assert isinstance(ax, matplotlib.axes.Axes)
@@ -81,11 +82,13 @@ class CurveHook(TrainingHook):
 
 
 class TqdmHook(TrainingHook):
-    progressbar: Optional[tqdm] = None
+    progressbar: Optional["tqdm"] = None
 
     def __init__(self, interval:int =1, tqdm=tqdm):
         super().__init__(interval)
+        from tqdm import tqdm
         self.tqdm = tqdm
+        self.progressbar = None
 
     def hook(self):
         if self.progressbar is None:
