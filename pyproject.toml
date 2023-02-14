@@ -10,6 +10,7 @@ packages = [{include = "ml_lib"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 torch = "^1.13.1"
+matplotlib = {version = "^3.7.0", optional = true}
 
 
 [build-system]
