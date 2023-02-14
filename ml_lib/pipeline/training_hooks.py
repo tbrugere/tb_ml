@@ -84,9 +84,10 @@ class CurveHook(TrainingHook):
 class TqdmHook(TrainingHook):
     progressbar: Optional["tqdm"] = None
 
-    def __init__(self, interval:int =1, tqdm=tqdm):
+    def __init__(self, interval:int =1, tqdm=None):
         super().__init__(interval)
-        from tqdm import tqdm
+        if tqdm is None:
+            from tqdm import tqdm
         self.tqdm = tqdm
         self.progressbar = None
 
