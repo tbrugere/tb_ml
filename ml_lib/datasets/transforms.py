@@ -173,11 +173,9 @@ class ToGPUTransform(FunctionTransform[TensorOrNamedTupleElement, TensorOrNamedT
         match elem:
             case Tensor():
                 return elem.to(self.device)
-            case NamedTuple():
+            case _:
                 return elem._replace(**{k: v.to(self.device) 
                                         for k, v in elem._asdict().items() if isinstance(v, Tensor)})
-            case _:
-                raise TypeError(f"expected Tensor or NamedTuple, got {type(elem)}")
 
 
 ############################################################################
