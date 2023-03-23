@@ -45,9 +45,10 @@ class CacheTransform(Transform[Element, Element]):
     def __len__(self):
         return len(self.cached_data)
 
+
 @transform_register
 @dataclass
-class FunctionTransform(Generic[Element, Element2], Transform[Element, Element2]):
+class FunctionTransform(Transform[Element, Element2]):
     """Simple transform that applies a function to every element of the dataset
 
     """
@@ -63,29 +64,33 @@ class FunctionTransform(Generic[Element, Element2], Transform[Element, Element2]
             yield self.f(elem)
 
 @transform_register
-class MultipleFunctionTransform(FunctionTransform[NamedTupleElement, NamedTupleElement]):
+class MultipleFunctionTransform(FunctionTransform[Element, "Self.datapoint_type"]):
 
-    functions: dict[int | str, Callable]
+    functions: dict[str, tuple[Callable, str|int]]
+    datapoint_type = field(init=False)
 
     def __init__(self, inner, functions):
         self.inner = inner
         self.functions = functions
+        self.datapoint_type = namedtuple("datapoint", self.functions.keys())
 
     def f(self, inner_value: NamedTupleElement) -> NamedTupleElement:
         result = {}
-        for i, (elem_name, elem) in enumerate(inner_value._asdict().items()):
-            if i in self.functions:
-                mapped_elem = self.functions[i](elem)
-            elif elem_name in self.functions:
-                mapped_elem = self.functions[elem_name](elem)
-            else:
-                mapped_elem = elem
+        for elem_name, (func, arg) in self.functions.items():
+            match arg:
+                case "_":
+                    mapped_elem = func(inner_value)
+                case int() if isinstance(inner_value, Sequence):
+                    mapped_elem = func(inner_value[arg])
+                case str():
+                    mapped_elem = func(getattr(inner_value, arg))
+                case _:
+                    assert False, f"incompatible {arg=} and {inner_value=}"
             result[elem_name] = mapped_elem
-        return type(inner_value)(**result)
-
+        return self.datapoint_type(**result)
 
 @transform_register
-class RenameTransform(FunctionTransform[Element, NamedTupleElement]):
+class RenameTransform(FunctionTransform[Element, NamedTuple]):
     """Rename the outputs of a dataset
 
     Converts a dataset whose elements are tuples, dicts, or namedtuples to
@@ -124,14 +129,14 @@ class RenameTransform(FunctionTransform[Element, NamedTupleElement]):
      """
     inner: Dataset[Element]
     name_map: dict[int | str, str]
-    datapoint_type: type[NamedTupleElement] = field(init=False)
+    datapoint_type: type[NamedTuple] = field(init=False)
 
     def __init__(self, inner, name_map):
         self.inner = inner
         self.name_map = name_map
         self.datapoint_type= namedtuple("datapoint", self.name_map.values())
 
-    def f(self, inner_value: Element) -> NamedTupleElement:
+    def f(self, inner_value: Element) -> "Self.datapoint_type":
         d = {}
         for key, field_name in self.name_map.items():
             match key:
@@ -145,8 +150,8 @@ class RenameTransform(FunctionTransform[Element, NamedTupleElement]):
                     d[field_name] = getattr(inner_value, key)
                 case _:
                     assert False, f"incompatible {key=} and {inner_value=}"
-
         return self.datapoint_type(**d)
+
 
 
 ############################################################################

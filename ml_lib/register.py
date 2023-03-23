@@ -3,12 +3,13 @@ from typing import overload, TypeVar, Callable, Generic, Optional
 # import collections
 import functools as ft
 
-T = TypeVar("T")
+T = TypeVar("T", bound=type)
 
+class Register(dict[str, T], Generic[T]):
 
-class Register(dict[str, type[T]], Generic[T]):
+    U = TypeVar("U", bound=T)#type:ignore
 
-    def __init__(self, t: type[T], name_field: str = "name"):
+    def __init__(self, t: T, name_field: str = "name"):
         """
         A class that records other classes.
 
@@ -16,14 +17,14 @@ class Register(dict[str, type[T]], Generic[T]):
         in this case, it records that classes and its name.
         after that, one can use that instance to access said class using ```__getitem__```
 
-        :param t type[T]: [TODO:description]
+        :param t T: [TODO:description]
         :param name_field str: [TODO:description]
         """
         super().__init__()
         self.t = t
         self.name_field = name_field
 
-    def _register_module(self, module: type[T], name: str=None) -> type[T]:
+    def _register_module(self, module: T, name: str|None=None) -> T:
         if name is None:
             name = getattr(module, self.name_field, module.__name__)
         assert name is not None
@@ -32,11 +33,11 @@ class Register(dict[str, type[T]], Generic[T]):
         return module
 
     @overload
-    def __call__(self, m: type[T], /) -> type[T]:
+    def __call__(self, m: U, /) -> U:
         ...
 
     @overload
-    def __call__(self, name: str, /) -> Callable[[type[T]], type[T]]:
+    def __call__(self, name: str, /) -> Callable[[U], U]:
         ...
 
     def __call__(self, arg, /): #type: ignore
@@ -50,9 +51,9 @@ class Register(dict[str, type[T]], Generic[T]):
 
 class Loader(Generic[T]):
 
-    register: dict[str, type[T]]
+    register: dict[str, T]
 
-    def __init__(self, register: dict[str, type[T]]):
+    def __init__(self, register: dict[str, T]):
         self.register = register 
 
     def load_config(self, config_dict: dict):
