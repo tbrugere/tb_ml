@@ -6,7 +6,7 @@ Contrarily to the ones seen in pytorch
 Basically they are actually datasets, which take other datasets as parameter.
 
 """
-from typing import Optional, Iterator, Callable, Generic, TypeVar, NamedTuple
+from typing import Optional, Iterator, Callable, Generic, TypeVar, NamedTuple, Union
 
 from collections import namedtuple
 from collections.abc import Sequence, Mapping
@@ -14,11 +14,13 @@ from dataclasses import dataclass, field
 import itertools as it
 
 import torch
+from torch import Tensor
 
 from .base_classes import Transform, Dataset, Element, Element2
 from .registration import transform_register
 
 NamedTupleElement = TypeVar("NamedTupleElement", bound=NamedTuple)
+TensorOrNamedTupleElement = TypeVar("TensorOrNamedTupleElement", bound=Union[Tensor, NamedTuple])
 
 @transform_register
 class CacheTransform(Transform[Element, Element]):
@@ -89,6 +91,8 @@ class MultipleFunctionTransform(FunctionTransform[Element, "Self.datapoint_type"
             result[elem_name] = mapped_elem
         return self.datapoint_type(**result)
 
+
+
 @transform_register
 class RenameTransform(FunctionTransform[Element, NamedTuple]):
     """Rename the outputs of a dataset
@@ -152,6 +156,28 @@ class RenameTransform(FunctionTransform[Element, NamedTuple]):
                     assert False, f"incompatible {key=} and {inner_value=}"
         return self.datapoint_type(**d)
 
+
+@transform_register
+class ToGPUTransform(FunctionTransform[TensorOrNamedTupleElement, TensorOrNamedTupleElement]):
+    """Transforms a dataset to a dataset that sends the elements to the GPU
+
+    """
+    inner: Dataset[TensorOrNamedTupleElement]
+    device: torch.device
+
+    def __init__(self, inner: Dataset[TensorOrNamedTupleElement], device: torch.device):
+        self.inner = inner
+        self.device = device
+
+    def f(self, elem):
+        match elem:
+            case Tensor():
+                return elem.to(self.device)
+            case NamedTuple():
+                return elem._replace(**{k: v.to(self.device) 
+                                        for k, v in elem._asdict().items() if isinstance(v, Tensor)})
+            case _:
+                raise TypeError(f"expected Tensor or NamedTuple, got {type(elem)}")
 
 
 ############################################################################
