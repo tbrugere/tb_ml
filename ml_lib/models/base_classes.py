@@ -2,15 +2,42 @@ from typing import Callable, Optional
 
 import functools as ft
 import itertools as it
+from types import FunctionType
 
 import torch
 import torch.nn as nn
 
 from ..environment import HasEnvironmentMixin
 
-class Model(nn.Module, HasEnvironmentMixin):
+class ModelMeta(type):
+    """
+    Metaclass for models. 
+    Ensures that all the model’s function runs in the model’s context manager.
+    """
+    def __new__(cls, name, bases, class_dict):
+        new_class_dict = {}
+        for attr_name, attr in class_dict.items():
+            if isinstance(attr, FunctionType):
+                attr = cls.use_model_context(attr)
+            new_class_dict[attr_name] = attr
+        return type.__new__(cls, name, bases, new_class_dict)
+
+    @staticmethod
+    def use_model_context(f):
+        @ft.wraps(f)
+        def wrapped(self, *args, **kwargs):
+            with self.device:
+                return f(self, *args, **kwargs)
+        return wrapped
+
+class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
     """
     Base class for this library’s models.
+    Got a bunch of sugar including:
+        - keeping track of the device the model is on
+        - ensuring that all the model’s function run on the correct device by default
+        - somewhere to place loss functions
+        - some useful functions
     """
 
     device: torch.device
