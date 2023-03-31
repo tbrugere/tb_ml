@@ -150,7 +150,7 @@ class Environment():
         return False
 
 
-    def __getattr__(self, key: str):
+    def __getattribute__(self, key: str):
         return self.get(key)
 
     def __contains__(self, key:str):
@@ -251,6 +251,8 @@ class ScopedEnvironment():
         return self.environment.get(key, self.scope)
 
     def __setattr__(self, key: str, value: Any):
+        if key in ('scope', 'environment'):
+            self.__dict__[key] = value
         self.record(key, value)
 
     def __getattr__(self, key: str):
