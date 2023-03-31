@@ -23,15 +23,14 @@ class ModelMeta(type):
             if isinstance(attr, FunctionType):
                 attr = cls.use_model_context(attr)
             new_class_dict[attr_name] = attr
-        if "device" not in new_class_dict:
-            new_class_dict["device"] = _get_default_device()
         return type.__new__(cls, name, bases, new_class_dict)
 
     @staticmethod
     def use_model_context(f):
         @ft.wraps(f)
         def wrapped(self, *args, **kwargs):
-            with self.device:
+            device = self.getattr("device", _get_default_device())
+            with device:
                 return f(self, *args, **kwargs)
         return wrapped
 
