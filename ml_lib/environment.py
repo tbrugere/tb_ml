@@ -253,6 +253,7 @@ class ScopedEnvironment():
     def __setattr__(self, key: str, value: Any):
         if key in ('scope', 'environment'):
             self.__dict__[key] = value
+            return
         self.record(key, value)
 
     def __getattr__(self, key: str):
