@@ -33,7 +33,7 @@ class ModelMeta(type):
         def wrapped(self, *args, **kwargs):
             # device = self.getattr("device", _get_default_device())
             device = self.device
-            with device:
+            with torch.device(device):
                 return f(self, *args, **kwargs)
         return wrapped
 
