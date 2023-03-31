@@ -31,9 +31,8 @@ class ModelMeta(type):
     def use_model_context(f):
         @ft.wraps(f)
         def wrapped(self, *args, **kwargs):
-            # device = self.getattr("device", _get_default_device())
             device = self.device
-            with torch.device(device):
+            with device:
                 return f(self, *args, **kwargs)
         return wrapped
 
@@ -50,8 +49,8 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
     device: torch.device
 
     def __init__(self):
-        super(nn.Module).__init__()
-        super(HasEnvironmentMixin).__init__()
+        super(nn.Module, self).__init__()
+        super(HasEnvironmentMixin, self).__init__()
         self.device = torch.device("cpu")
 
     def predict(self, x) -> torch.Tensor: 
