@@ -49,8 +49,8 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
     device: torch.device
 
     def __init__(self):
-        super(nn.Module, self).__init__()
-        super(HasEnvironmentMixin, self).__init__()
+        nn.Module.__init__(self)
+        HasEnvironmentMixin.__init__(self)
         self.device = torch.device("cpu")
 
     def predict(self, x) -> torch.Tensor: 
