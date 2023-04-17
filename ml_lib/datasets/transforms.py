@@ -49,6 +49,24 @@ class CacheTransform(Transform[Element, Element]):
 
 
 @transform_register
+class FilterTransform(Transform[Element, Element]):
+    """Transforms a dataset by filtering out some elements
+
+    """
+    inner: Dataset[Element]
+    f: Callable[[Element,], bool]
+
+    def __init__(self, inner: Dataset[Element], f: Callable[[Element,], bool]):
+        self.inner = inner
+        self.f = f
+
+    def __iter__(self):
+        for elem in self.inner:
+            if self.f(elem):
+                yield elem
+
+
+@transform_register
 @dataclass
 class FunctionTransform(Transform[Element, Element2]):
     """Simple transform that applies a function to every element of the dataset
@@ -90,7 +108,6 @@ class MultipleFunctionTransform(FunctionTransform[Element, "Self.datapoint_type"
                     assert False, f"incompatible {arg=} and {inner_value=}"
             result[elem_name] = mapped_elem
         return self.datapoint_type(**result)
-
 
 
 @transform_register
