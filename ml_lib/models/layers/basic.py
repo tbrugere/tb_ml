@@ -31,6 +31,8 @@ def MLP_rectangular(n_layers, dim_in, dim_hidden, dim_out, activation=nn.ELU, ac
 class MLP(nn.Sequential):
     def __init__(self, *dims: int, batchnorm=True, end_activation=False, activation=nn.ReLU):
         super().__init__()
+        if len(dims) < 2:
+            raise ValueError("MLP must have at least 2 dimensions (input and output))")
         for i, input_dim, output_dim in zip(it.count(), dims, dims[1:]):
             self.add_module(f"linear_{i}", nn.Linear(input_dim, output_dim))
             if i == len(dims)-2 and not end_activation:
