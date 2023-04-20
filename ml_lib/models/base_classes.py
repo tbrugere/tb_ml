@@ -20,7 +20,7 @@ class ModelMeta(type):
     def __new__(cls, name, bases, class_dict):
         new_class_dict = {}
         for attr_name, attr in class_dict.items():
-            if isinstance(attr, FunctionType):
+            if isinstance(attr, FunctionType) and attr_name != "__init__":
                 attr = cls.use_model_context(attr)
             new_class_dict[attr_name] = attr
         if "device" not in new_class_dict:
@@ -46,12 +46,13 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
         - some useful functions
     """
 
-    device: torch.device
+    _dummy_param: nn.Parameter
 
     def __init__(self):
         nn.Module.__init__(self)
         HasEnvironmentMixin.__init__(self)
-        self.device = torch.device("cpu")
+        # self.device = _get_default_device()
+        self._dummy_param = nn.Parameter()
 
     def predict(self, x) -> torch.Tensor: 
         x;
@@ -62,12 +63,8 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
         raise NotImplementedError("This model doesn’t have a loss function. "
                              "You should pass one to the trainer")
 
-    def _apply(self, fn):
-        # keeps the device in sync with the model
-        # https://stackoverflow.com/a/70593357/4948719
-        super()._apply(fn)
-        self.device = fn(self.device)
-        return self
+    def device(self):
+        return self._dummy_param.device
 
     def num_parameters(self, trainable_only: bool = False):
         if trainable_only:
