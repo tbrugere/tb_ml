@@ -63,6 +63,7 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
         raise NotImplementedError("This model doesn’t have a loss function. "
                              "You should pass one to the trainer")
 
+    @property
     def device(self):
         return self._dummy_param.device
 
