@@ -78,7 +78,9 @@ class TransformerBlock(nn.Sequential):
         self.add_module("norm1", nn.LayerNorm(input_dim))
         
         self.add_module("feed_forward", ResidualShortcut(
-            MLP([input_dim, embed_dim, input_dim],norm=None)
-        ))
+            
+            MLP(input_dim, embed_dim, input_dim, batchnorm=False, 
+                activation=activation)
+            ))
         
         self.add_module("norm2", nn.LayerNorm(input_dim))

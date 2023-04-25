@@ -29,7 +29,7 @@ def MLP_rectangular(n_layers, dim_in, dim_hidden, dim_out, activation=nn.ELU, ac
     return nn.Sequential(*layers)
 
 class MLP(nn.Sequential):
-    def __init__(self, *dims: int, batchnorm=True, end_activation=False, activation=nn.ReLU):
+    def __init__(self, *dims: int, batchnorm=True, end_activation=False, activation:type[nn.Module]=nn.ReLU):
         super().__init__()
         if len(dims) < 2:
             raise ValueError("MLP must have at least 2 dimensions (input and output))")
