@@ -55,13 +55,16 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
         self._dummy_param = nn.Parameter()
 
     def predict(self, x) -> torch.Tensor: 
-        x;
+        """Procedure used at inference time to compute the output"""
         raise NotImplementedError
 
     def compute_loss(self, x) -> torch.Tensor:
-        x;
+        """Procedure used at training time to compute the loss"""
         raise NotImplementedError("This model doesn’t have a loss function. "
                              "You should pass one to the trainer")
+
+    def forward(self, x) -> torch.Tensor: 
+        return self.predict(x)
 
     @property
     def device(self):
@@ -109,29 +112,29 @@ class AutoEncoder(Unsupervised):
     """Base class for autoencoders"""
 
     loss_fun: Optional[Callable]
+    encoder: Callable
+    decoder: Callable
     """
     Default loss function.
     It should take two arguments, `input` and `target`
     """
 
     def encode(self, x) -> torch.Tensor:
-        raise NotImplementedError
+        return self.encoder(x)
 
     def decode(self, z) -> torch.Tensor:
-        raise NotImplementedError
+        return self.decoder(z)
 
-    def forward(self, x) -> torch.Tensor:
-        return self.predict(x)
+    def recognition_loss(self, x, z, loss_fun: Optional[Callable]=None):
+        if loss_fun is None: loss_fun = self.loss_fun
+        assert loss_fun is not None, "no loss function "
+        y = self.decode(z)
+        return loss_fun(y, x)
 
     def predict(self, x):
-        z = self.encode(x)
-        y = self.decode(z)
-        return y
+        return self.encode(x)
 
     def compute_loss(self, x, loss_fun: Optional[Callable]=None):
-        y = self(x)
-        if loss_fun is None:
-            loss_fun = self.loss_fun
-        assert loss_fun is not None, "no loss function "
-        loss = loss_fun(y, x) 
+        z = self.encode(x)
+        loss = self.recognition_loss(x, z, loss_fun)
         return loss

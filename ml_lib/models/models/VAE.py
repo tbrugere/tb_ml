@@ -11,11 +11,13 @@ class VAE(AutoEncoder):
     """Variational Autoencoder"""
 
     reparameterize: Reparameterize
+    encoder: Callable
+    decoder: Callable
 
     def __init__(self):
         super().__init__()
         self.reparameterize = Reparameterize()
-        self.loss_fun = nn.MSELoss()
+        # self.loss_fun = nn.MSELoss()
 
     def predict(self, x, return_kl=False) -> Tensor:
         z = self.encode(x)
@@ -28,11 +30,11 @@ class VAE(AutoEncoder):
             return y, kl#type: ignore
         return y
 
-    def compute_loss(self, x, loss_fun: Optional[Callable]=None):
-        y, kl = self.predict(x, return_kl=True)
-        if loss_fun is None:
-            loss_fun = self.loss_fun
-        assert loss_fun is not None, "no loss function "
-        mse = loss_fun(y, x) 
-        loss = mse + kl
+    def encode(self, x):
+        return self.encoder(x)
+
+    def compute_loss(self, x, loss_fun: Optional[Callable]=None, kl_coef=1.):
+        z, kl = self.predict(x, return_kl=True)
+        mse = self.recognition_loss(x, z, loss_fun=loss_fun)
+        loss = mse + kl_coef * kl
         return loss
