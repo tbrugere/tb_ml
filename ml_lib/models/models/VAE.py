@@ -24,14 +24,10 @@ class VAE(AutoEncoder):
         if return_kl:
             z, kl = self.reparameterize(z, returnkl=True)
         else:
-            z = self.reparameterize(z)
-        y = self.decode(z)
+            z = self.reparameterize(z, returnkl = False)
         if return_kl:
-            return y, kl#type: ignore
-        return y
-
-    def encode(self, x):
-        return self.encoder(x)
+            return z, kl#type: ignore
+        return z
 
     def compute_loss(self, x, loss_fun: Optional[Callable]=None, kl_coef=1.):
         z, kl = self.predict(x, return_kl=True)
