@@ -138,3 +138,31 @@ class AutoEncoder(Unsupervised):
         z = self.encode(x)
         loss = self.recognition_loss(x, z, loss_fun)
         return loss
+
+class Head(nn.Module):
+    """Head modules. These modules are used to change output types"""
+
+    def forward(self, x):
+        raise NotImplementedError
+
+    def compute_loss(self, x, gt):
+        raise NotImplementedError
+
+class BodyHeadSupervised(Supervised):
+    """Base class for models with a body and a head"""
+
+    body: nn.Module
+    head: Head
+
+    def __init__(self, body, head):
+        super().__init__()
+        self.body = body
+        self.head = head
+
+    def predict(self, x):
+        return self.head(self.body(x))
+
+    def compute_loss(self, x, gt, **kwargs):
+        y = self.body(x)
+        loss = self.head.compute_loss(y, gt, **kwargs)
+        return loss
