@@ -134,9 +134,9 @@ class AutoEncoder(Unsupervised):
     def predict(self, x):
         return self.encode(x)
 
-    def compute_loss(self, x, loss_fun: Optional[Callable]=None):
+    def compute_loss(self, x, loss_fun: Optional[Callable]=None, **kwargs):
         z = self.encode(x)
-        loss = self.recognition_loss(x, z, loss_fun)
+        loss = self.recognition_loss(x, z, loss_fun, **kwars)
         return loss
 
 class Head(nn.Module):
@@ -149,7 +149,10 @@ class Head(nn.Module):
         raise NotImplementedError
 
 class BodyHeadSupervised(Supervised):
-    """Base class for models with a body and a head"""
+    """Base class for models with a body and a head.
+    This is a pattern I use often which is why I’m defining it here
+
+    """
 
     body: nn.Module
     head: Head
