@@ -134,9 +134,9 @@ class AutoEncoder(Unsupervised):
     def predict(self, x):
         return self.encode(x)
 
-    def compute_loss(self, x, loss_fun: Optional[Callable]=None, **kwargs):
+    def compute_loss(self, x, loss_fun: Optional[Callable]=None):
         z = self.encode(x)
-        loss = self.recognition_loss(x, z, loss_fun, **kwars)
+        loss = self.recognition_loss(x, z, loss_fun)
         return loss
 
 class Head(nn.Module):
