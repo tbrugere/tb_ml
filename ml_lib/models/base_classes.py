@@ -23,8 +23,6 @@ class ModelMeta(type):
             if isinstance(attr, FunctionType) and attr_name != "__init__":
                 attr = cls.use_model_context(attr)
             new_class_dict[attr_name] = attr
-        if "device" not in new_class_dict:
-            new_class_dict["device"] = _get_default_device()
         return type.__new__(cls, name, bases, new_class_dict)
 
     @staticmethod
