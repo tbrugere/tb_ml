@@ -47,7 +47,7 @@ What I do now:
             z, kl = self.reparameterize(x_, return_kl=true)
             self.env.record("kl", kl)
         else:
-            z = self.reparameterize(x_, return_kl=true)
+            z = self.reparameterize(x_, return_kl=false)
         self.env.record("z", z)
 
         y = self.decode(z)
@@ -126,7 +126,7 @@ class Environment():
         values: dict[Scope, Any] = self.data[key]
         scope_len = len(scope)
         starts_with_scope = lambda s: s[:scope_len] == scope
-        #otherwise return the item with the highest scope
+        #otherwise return the item with the highest (shortest) scope
         max_scope: Optional[Scope] = None
         best_item: Any = None
         for item_scope, item in values.items():
@@ -244,11 +244,13 @@ class ScopedEnvironment():
     scope: Scope = ()
     environment: Environment = field(default_factory=Environment)
 
-    def record(self, key:str, value: Any):
-        self.environment.record(key, value, self.scope)
+    def record(self, key:str, value: Any, scope: Scope=()):
+        scope = self.scope + scope
+        self.environment.record(key, value, scope)
 
-    def get(self, key:str):
-        return self.environment.get(key, self.scope)
+    def get(self, key:str, scope: Scope=()):
+        scope = self.scope + scope
+        return self.environment.get(key, scope)
 
     def __setattr__(self, key: str, value: Any):
         if key in ('scope', 'environment'):

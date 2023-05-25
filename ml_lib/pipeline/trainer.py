@@ -90,9 +90,9 @@ class Trainer():
 
         ################ set hooks
         for hook in step_hooks:
-            hook.env = self.iter_env
+            hook.set_environment(self.iter_env)
         for hook in epoch_hooks:
-            hook.env = self.epoch_env
+            hook.env.set_environment(self.epoch_env)
         self.step_hooks = step_hooks
         self.epoch_hooks = epoch_hooks
 
@@ -124,8 +124,13 @@ class Trainer():
         match batch:
             case dict():
                 self.iter_env.record_dict(batch)
-            case namedtuple():
+            case batch if hasattr(batch, "_asdict"):
                 self.iter_env.record_dict(batch._asdict())
+            case (x, y):
+                self.iter_env.record("x", x)
+                self.iter_env.record("y", y)
+            case _:
+                self.iter_env.record("x", batch)
         self.iter_env.record("batch", batch)
 
         loss = self.iter_env.run_function(self.model.compute_loss, 

@@ -42,7 +42,7 @@ class AnnealingScheduler():
         return self.beta_0
 
     @classmethod
-    def draw(cls, n_iterations: int | None = None, *args, **kwargs):
+    def draw(cls, n_iterations: int | None = None, ax=None, *args, **kwargs):
         """Draws this scheduler on current matpltolib ax 
         (use plt.sca if needed)
 
@@ -56,6 +56,8 @@ class AnnealingScheduler():
             n_iterations = scheduler.T_0 #type:ignore
             assert isinstance(n_iterations, int)
         values = [scheduler.step() for _ in range(n_iterations)]
+        if ax is None:
+            ax = plt.gca()
         plt.plot(values)
 
 

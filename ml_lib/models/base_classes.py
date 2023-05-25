@@ -45,6 +45,7 @@ class Model(nn.Module, HasEnvironmentMixin, metaclass=ModelMeta):
         - somewhere to place loss functions
         - some useful functions
     """
+     
 
     _dummy_param: nn.Parameter
 

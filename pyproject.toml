@@ -18,6 +18,10 @@ tqdm = {version = "^4.64.1", optional = true}
 jupyter = "^1.0.0"
 seaborn = "^0.12.2"
 
+
+[tool.poetry.group.experimenttracking.dependencies]
+sqlalchemy = "^2.0.10"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

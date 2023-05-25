@@ -10,13 +10,15 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
 
-from ..environment import Environment, Scope, scopevar_of_str, str_of_scopevar
+from ..environment import HasEnvironmentMixin, Scope, scopevar_of_str, str_of_scopevar
+from .annealing_scheduler import AnnealingScheduler, get_scheduler
 
 @dataclass
-class TrainingHook():
+class TrainingHook(HasEnvironmentMixin):
 
     interval: int = 1
-    env: Environment = field(default_factory=Environment)
+    # env: Environment = field(default_factory=Environment)
+    __post_init__ = HasEnvironmentMixin.__init__
 
     def __call__(self):
         n_iteration = self.env.iteration
@@ -48,9 +50,7 @@ class LoggerHook(TrainingHook):
 
         info(s.getvalue())
 
-
 class CurveHook(TrainingHook):
-
     scope: Scope
     variable: str
     values: list
@@ -78,8 +78,30 @@ class CurveHook(TrainingHook):
         ax.set_ylabel(self.variable)
         ax.plot(np.arange(len(values)) * self.interval, values)
 
+class KLAnnealingHook(TrainingHook):
+    scope: Scope
+    variable: str
+    scheduler: AnnealingScheduler
+    
+    def __init__(self, variable="kl_coef",
+                 scheduler: str|AnnealingScheduler = "constant",
+                 beta_0 = None, T_0=None, T_1=None):
+        super().__init__(interval=1)
+        self.scope, self.variable = scopevar_of_str(variable)
+        match scheduler:
+            case AnnealingScheduler():
+                assert beta_0 is None and T_0 is None and T_1 is None
+                self.scheduler = scheduler
+            case str():
+                if beta_0 is None: beta_0 = 1.
+                self.scheduler = get_scheduler(scheduler, beta_0, T_0, T_1)
 
+    def hook(self):
+        val = self.scheduler.step()
+        self.env.record(self.variable, val, self.scope)
 
+    def draw(self, ax: "matplotlib.axes.Axes|None" = None):
+        self.scheduler.draw(ax=ax)
 
 class TqdmHook(TrainingHook):
     progressbar: Optional["tqdm"] = None
