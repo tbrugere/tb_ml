@@ -20,7 +20,7 @@ class ModelMeta(type):
     def __new__(cls, name, bases, class_dict):
         new_class_dict = {}
         for attr_name, attr in class_dict.items():
-            if isinstance(attr, FunctionType) and attr_name != "__init__":
+            if isinstance(attr, FunctionType) and attr_name not in ("__init__", "device"):
                 attr = cls.use_model_context(attr)
             new_class_dict[attr_name] = attr
         return type.__new__(cls, name, bases, new_class_dict)
