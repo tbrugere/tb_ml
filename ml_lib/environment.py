@@ -151,6 +151,8 @@ class Environment():
 
 
     def __getattr__(self, key: str):
+        if key == "data" and not hasattr(self, "data"):
+            self.data = defaultdict()
         return self.get(key)
 
     def __contains__(self, key:str):
