@@ -153,6 +153,7 @@ class Environment():
     def __getattr__(self, key: str):
         if key == "data":#this means there is no data attribute for some reason
             self.reset() 
+            return self.data
         return self.get(key)
 
     def __contains__(self, key:str):
