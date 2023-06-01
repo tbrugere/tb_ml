@@ -74,12 +74,13 @@ function_times: dict[Callable, list[tuple[float, dict]]] = dict()
 # simple profiling stuff
 #------------------------------------------------------
 
-def debug_time(out_string=None):
+def debug_time(out_string=None, log=info):
     """only works if is_debug is True
     If out_string is true, prints out_string as well as the time elapsed since the last call to debug_time
 
     Args:
       out_string: (Default value = None)
+      log: what function to use to log (Default value = logging.info)
 
     Returns:
 
@@ -89,7 +90,7 @@ def debug_time(out_string=None):
         old_time = perf_counter()
         return
     new_time = perf_counter()
-    info(f"{out_string}: time elapsed {new_time - old_time}s")
+    log(f"{out_string}: time elapsed {new_time - old_time}s")
     old_time = new_time
 
 def time_profile(function, arguments=None):
