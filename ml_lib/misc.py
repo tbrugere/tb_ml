@@ -1,9 +1,10 @@
-from typing import Callable, Sequence
+from typing import Callable, Sequence, Final
 
 import functools as ft
 from functools import wraps
 from inspect import signature
 from logging import info
+from math import log
 from time import perf_counter
 import warnings
 
@@ -227,6 +228,23 @@ def all_equal(*args):
             return True
         case (x0, *rest):
             return all(i == x0 for i in rest)
+
+def human_readable(num: int|float, suffix="", precision=2):
+    """
+    return a human readable representation of a number
+    Args:
+        num: the number to represent
+        suffix: a suffix to add to the number (for ex "B" for bytes)
+    """
+    isneg = num < 0; num = abs(num)
+    suffixes:Final[list[str]] = ["", "K", "M", "G", "T", "P", "E", "Z", "Y"]
+    suff_n = int(log(num, 1000))
+    if suff_n >= len(suffixes): suff_n = len(suffixes) - 1
+    suff = suffixes[suff_n]
+    num /= 1000**suff_n
+
+    return f"{'-' if isneg else ''}{num:.{precision}f}{suff}{suffix}"
+
 
 #-----------------------------------------------------------
 # Pytorch stuff
