@@ -14,22 +14,28 @@ from .basic import MLP
 # (iirc the way they handle the dimensions is different from the way I do
 # or maybe the projections)
 # so I had to use this
-def scaled_dot_product(q, k, v, mask=None):
-    d_k = q.size()[-1]
-    attn_logits = torch.matmul(q, k.transpose(-2, -1))
-    attn_logits = attn_logits / math.sqrt(d_k)
-    if mask is not None:
-        attn_logits = attn_logits.masked_fill(mask == 0, -9e15)
-    attention = F.softmax(attn_logits, dim=-1)
-    values = torch.matmul(attention, v)
-    return values, attention
+# def scaled_dot_product(q, k, v, mask=None):
+#     d_k = q.size()[-1]
+#     attn_logits = torch.matmul(q, k.transpose(-2, -1))
+#     attn_logits = attn_logits / math.sqrt(d_k)
+#     if mask is not None:
+#         attn_logits = attn_logits.masked_fill(mask == 0, -9e15)
+#     attention = F.softmax(attn_logits, dim=-1)
+#     values = torch.matmul(attention, v)
+#     return values, attention
 
 class MultiheadAttention(nn.Module):
+    """
+    Multihead Self-attention module.
+    Has some limitations that I could workaround, mostly the 
+    value dimension is the same as the key/query dimension
+    """
 
     def __init__(self, input_dim, embed_dim, num_heads):
         super().__init__()
         assert embed_dim % num_heads == 0, "Embedding dimension must be 0 modulo number of heads."
 
+        self.input_dim = input_dim
         self.embed_dim = embed_dim
         self.num_heads = num_heads
         self.head_dim = embed_dim // num_heads
@@ -47,25 +53,26 @@ class MultiheadAttention(nn.Module):
         nn.init.xavier_uniform_(self.o_proj.weight)
         self.o_proj.bias.data.fill_(0)
 
-    def forward(self, x, mask=None, return_attention=False):
-        seq_length, _ = x.size() #unbatched
-        qkv = self.qkv_proj(x)
+    def forward(self, x, mask=None):
+        *batch, seq_length, in_dim = x.shape
+        assert in_dim == self.input_dim, "Input dimension does not match."
+
+        qkv = self.qkv_proj(x) #(*batch, seq_length, 3*embed_dim)
 
         # Separate Q, K, V from linear output
-        qkv = qkv.reshape(seq_length, self.num_heads, 3*self.head_dim)
-        qkv = qkv.permute(1, 0, 2) # [Head, SeqLen, Dims]
-        q, k, v = qkv.chunk(3, dim=-1)
+        qkv = qkv.reshape(*batch, seq_length, self.num_heads, self.head_dim, 3)
+        # *batch, seq_length, num_heads, head_dim, 3
+        #using einsum instead of permute bc I find it more readable
+        qkv = torch.einsum("...lhit->...hlit", qkv)#*b, num_heads, seq_length, head_dim, 3
+        q, k, v = qkv[..., 0], qkv[..., 1], qkv[..., 2] #(*batch,num_heads, seq_length head_dim)
 
         # Determine value outputs
-        values, attention = scaled_dot_product(q, k, v, mask=mask)
-        values = values.permute(1, 0, 2) # [SeqLen, Head, Dims]
-        values = values.reshape(seq_length, self.embed_dim)
-        o = self.o_proj(values)
-
-        if return_attention:
-            return o, attention
-        else:
-            return o
+        values = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+        # *batch, num_heads, seq_length, head_dim
+        values = torch.einsum("...hli->...lhi", values) #*batch, seq_length, num_heads, head_dim
+        values = values.reshape(*batch, seq_length, self.embed_dim)
+        o = self.o_proj(values)#*batch, seq_length, input_dim
+        return o
 
 class TransformerBlock(nn.Sequential):
     
