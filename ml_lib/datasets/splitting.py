@@ -1,6 +1,7 @@
 import numpy as np
+from numpy.random import default_rng; rng = default_rng()
 
-def split_indices(num_samples, *percents):
+def split_indices(num_samples, *percents, rng=rng):
     if not isinstance(num_samples, int):
         num_samples = len(num_samples)
     assert np.isclose(sum(percents) , 1)
