@@ -1,5 +1,6 @@
 from typing import Callable, Optional
 
+import torch
 from torch import Tensor
 from torch import nn
 
@@ -35,3 +36,20 @@ class VAE(AutoEncoder):
         mse = self.recognition_loss(x, z, loss_fun=loss_fun)
         loss = mse + kl_coef * kl.mean()
         return loss
+
+    def sample(self, n_samples):
+        z = torch.randn(n_samples, self.latent_dim)
+        return self.decode(z)
+
+    _latent_dim: Optional[int] = None
+
+    @property
+    def latent_dim(self):
+        if self._latent_dim is not None:
+            return self._latent_dim
+        return self.encoder.out_features
+
+    @latent_dim.setter
+    def latent_dim(self, value):
+        self._latent_dim = value
+
