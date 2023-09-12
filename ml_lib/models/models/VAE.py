@@ -34,7 +34,7 @@ class VAE(AutoEncoder):
         if loss_fun is None: loss_fun = self.loss_fun
         z, kl = self.predict(x, return_kl=True)
         mse = self.recognition_loss(x, z, loss_fun=loss_fun)
-        self.env.kl = kl
+        self.env.kl = kl.mean()
         self.env.mse = mse
         loss = mse + kl_coef * kl.mean()
         return loss
