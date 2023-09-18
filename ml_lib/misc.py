@@ -1,9 +1,11 @@
 from typing import Callable, Sequence, Final
 
+from contextlib import contextmanager
 import functools as ft
 from functools import wraps
 from inspect import signature
 from logging import info
+import os
 from math import log
 from time import perf_counter
 import warnings
@@ -144,6 +146,17 @@ def print_function_times():
 # random stuff that should be in the standard lib
 #------------------------------------------------------------------
 
+@contextmanager
+def cwd(path):
+    """Context manager to change the working directory, 
+    gotten from https://stackoverflow.com/a/37996581/4948719"""
+    oldpwd = os.getcwd()
+    os.chdir(path)
+    try:
+        yield
+    finally:
+        os.chdir(oldpwd)
+
 def merge_dicts(*dicts: dict) -> dict:
     """merge dictionaries
 
@@ -236,6 +249,7 @@ def human_readable(num: int|float, suffix="", precision=2):
         num: the number to represent
         suffix: a suffix to add to the number (for ex "B" for bytes)
     """
+    if num == 0: return f"0{suffix}"
     isneg = num < 0; num = abs(num)
     suffixes:Final[list[str]] = ["", "K", "M", "G", "T", "P", "E", "Z", "Y"]
     suff_n = int(log(num, 1000))
