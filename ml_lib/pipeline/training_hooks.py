@@ -25,7 +25,7 @@ class TrainingHook(HasEnvironmentMixin):
 
         new_values = None
         if n_iteration % self.interval == 0:
-            self.env.run(self.hook)
+            self.env.environment.run_function(self.hook)
 
         if new_values is None:
             new_values = {}
@@ -36,7 +36,7 @@ class TrainingHook(HasEnvironmentMixin):
 class LoggerHook(TrainingHook):
     variables: list[tuple[Scope, str]]
 
-    def __init__(self, variables: list[str] = [], interval=1):
+    def __init__(self, variables: list[str] = ["loss"], interval=1):
         super().__init__(interval)
         self.variables = [scopevar_of_str(v) for v in variables]
 
@@ -60,7 +60,9 @@ class CurveHook(TrainingHook):
         self.scope, self.variable = scopevar_of_str(variable)
         self.values = []
         import matplotlib.pyplot as plt
+        import matplotlib as mpl
         self.plt = plt
+        self.mpl = mpl
 
     def hook(self):
         val = self.env.get(self.variable, self.scope)
@@ -72,7 +74,7 @@ class CurveHook(TrainingHook):
         import numpy as np
         if ax is None:
             ax = self.plt.gca()
-            assert isinstance(ax, matplotlib.axes.Axes)
+            assert isinstance(ax, self.mpl.axes.Axes)
         values = self.values
         ax.set_title(self.variable)
         ax.set_ylabel(self.variable)
@@ -109,7 +111,7 @@ class TqdmHook(TrainingHook):
     def __init__(self, interval:int =1, tqdm=None):
         super().__init__(interval)
         if tqdm is None:
-            from tqdm import tqdm
+            from tqdm.auto import tqdm
         self.tqdm = tqdm
         self.progressbar = None
 
