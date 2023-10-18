@@ -27,12 +27,14 @@ class ModelMeta(type):
     """
     def __new__(cls, name, bases, class_dict):
         new_class_dict = {}
-        cls.validate(new_class_dict)
         for attr_name, attr in class_dict.items():
             if isinstance(attr, FunctionType) and attr_name not in ("__init__", "device"):
                 attr = cls.use_model_context(attr)
             new_class_dict[attr_name] = attr
-        return type.__new__(cls, name, bases, new_class_dict)
+        c = type.__new__(cls, name, bases, new_class_dict)
+        cls.validate(c)
+        return c
+        
 
     @staticmethod
     def use_model_context(f):
@@ -163,10 +165,12 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
             return [(attr_name, t) 
                     for attr_name, t 
                     in get_type_hints(cls, include_extras=True).items()
-                    if IS_HYPERPARAM in t.__metadata__]
+                    if hasattr(t, "__metadata__") and
+                    IS_HYPERPARAM in t.__metadata__]
         return [attr_name for attr_name, t 
                 in get_type_hints(cls, include_extras=True).items()
-                if IS_HYPERPARAM in t.__metadata__]
+                if hasattr(t, "__metadata__") and
+                IS_HYPERPARAM in t.__metadata__]
 
     def get_hyperparameters(self):
         return {attr_name: getattr(self, attr_name) 
@@ -187,6 +191,25 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
             s.write(f"    {attr_name}={value},\n")
         s.write(")")
         return s.getvalue()
+
+    def has_pretraining_function(self):
+        """returns True if the model has a `do_pretraining` function
+        This function will be called at the start of the training if available
+        """
+        return hasattr(self, "do_pretraining")
+
+    def has_training_function(self):
+        """returns True if the model has a `do_training` function
+        This function will be used instead of the loss to train the model if available
+        """
+        return hasattr(self, "do_training")
+
+    def has_epoch_function(self):
+        """returns True if the model has a `do_epoch` function
+        This function will be called instead of the loss to train the model if available 
+        (and `has_training_function` is False)
+        """
+        return hasattr(self, "do_epoch")
 
 
 class Supervised(Model):
