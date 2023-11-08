@@ -124,15 +124,16 @@ class TqdmHook(TrainingHook):
 
 class TensorboardHook(TrainingHook):
     
-    def __init__(self, tensorboard_dir:Optional[str] = None, interval: int=1, log_vars = ["loss"]):
+    def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  log_vars = ["loss"]):
         from torch.utils import tensorboard
         super().__init__(interval)
         if tensorboard_dir is None:
             tensorboard_path = find_file([Path("tensorboard"), Path("../tensorboard"), Path(f"{os.environ['HOME']}/tensorboard")])
             if tensorboard_path is None: tensorboard_dir = "tensorboard"
         else : tensorboard_path = Path(tensorboard_dir)
+        tensorboard_path = tensorboard_path / run_name
         self.tensorboard = tensorboard
-        self.writer = tensorboard.SummaryWriter(tensorboard_path)
+        self.writer = tensorboard.SummaryWriter(str(tensorboard_path))
         self.log_vars = [scopevar_of_str(v) for v in log_vars]
 
     def hook(self):
