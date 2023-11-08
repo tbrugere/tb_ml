@@ -79,3 +79,11 @@ class Sequential(nn.Module):
                 case x, _:
                     output = module(x)
         return output
+
+class Concat(nn.Module):
+    def __init__(self, dim=-1):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, *inputs):
+        return torch.cat(inputs, dim=self.dim)
