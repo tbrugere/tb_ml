@@ -421,10 +421,10 @@ class BodyHeadSupervised(Supervised):
     body: nn.Module
     head: Head
 
-    def __init__(self, body, head):
-        super().__init__()
-        self.body = body
-        self.head = head
+    # def __init__(self, body, head):
+    #     super().__init__()
+    #     self.body = body
+    #     self.head = head
 
     def predict(self, x):
         return self.head(self.body(x))
