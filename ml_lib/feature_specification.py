@@ -10,7 +10,7 @@ from .misc import all_equal
 class FeatureType():
     name: str
     dim: int
-    extract: Callable[..., torch.Tensor]
+    extract: Callable[..., torch.Tensor] = lambda x: x
     loss_coef: float = 1.
     """Extracts the feature from the input, returns a tensor of shape (batch, dim)"""""
 
