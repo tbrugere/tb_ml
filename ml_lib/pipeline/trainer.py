@@ -158,15 +158,15 @@ class Trainer():
 
     def train(self):
         model = self.model
-        if hasattr(model, "do_pretraining"):
+        if model.do_pretraining is not None:
             info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
-            self.global_env.run(model.do_pretraining)
+            self.global_env.run_function(model.do_pretraining)
 
-        if hasattr(model, "do_training"):
+        if model.do_training is not None:
             info(f"Model {model} has do_training method, using that")
             assert callable(model.do_training), "model do_training is not callable!"
-            self.global_env.run(model.do_training)
+            self.global_env.run_function(model.do_training)
             return
 
         for _ in range(self.n_epochs):
