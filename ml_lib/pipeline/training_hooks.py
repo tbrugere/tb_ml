@@ -3,14 +3,15 @@ from typing import Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 from io import StringIO
 from logging import info
-
-
+import os
+from pathlib import Path
 
 if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
 
 from ..environment import HasEnvironmentMixin, Scope, scopevar_of_str, str_of_scopevar
+from ..misc import find_file
 from .annealing_scheduler import AnnealingScheduler, get_scheduler
 
 @dataclass
@@ -123,9 +124,23 @@ class TqdmHook(TrainingHook):
 
 class TensorboardHook(TrainingHook):
     
-    def __init__(self):
+    def __init__(self, tensorboard_dir:Optional[str] = None, interval: int=1, log_vars = ["loss"]):
         from torch.utils import tensorboard
+        super().__init__(interval)
+        if tensorboard_dir is None:
+            tensorboard_path = find_file([Path("tensorboard"), Path("../tensorboard"), Path(f"{os.environ['HOME']}/tensorboard")])
+            if tensorboard_path is None: tensorboard_dir = "tensorboard"
+        else : tensorboard_path = Path(tensorboard_dir)
         self.tensorboard = tensorboard
+        self.writer = tensorboard.SummaryWriter(tensorboard_path)
+        self.log_vars = [scopevar_of_str(v) for v in log_vars]
 
-        raise NotImplementedError
+    def hook(self):
+        step = self.env.iteration
+        loss_dict= dict()
+        for scope, var in self.log_vars:
+            loss_dict[var] = self.env.get(var, scope)
+        self.writer.add_scalars('loss', loss_dict, step)
 
+
+    
