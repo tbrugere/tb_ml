@@ -1,5 +1,5 @@
 from typing import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 
 import torch
 import torch.nn.functional as F
@@ -10,7 +10,7 @@ from .misc import all_equal
 class FeatureType():
     name: str
     dim: int
-    extract: Callable[..., torch.Tensor] = lambda x: x
+    extract: Callable[..., torch.Tensor] = dataclass_field(default=lambda x: x, repr=False)
     loss_coef: float = 1.
     """Extracts the feature from the input, returns a tensor of shape (batch, dim)"""""
 
@@ -28,6 +28,7 @@ class FeatureType():
 
     def get_features(self, input):
         return self.encode(self.extract(input))
+
 
 class MSEFeature(FeatureType):
     def compute_loss(self, input, target):
@@ -84,3 +85,7 @@ class FeatureSpecification():
 
     def stack(self, inputs):
         return torch.cat([inputs[feature.name] for feature in self.features], dim=-1)
+
+    def __repr__(self):
+        features_repr = [repr(feature) for feature in self.features]
+        return f"FeatureSpecification({', '.join(features_repr)})"
