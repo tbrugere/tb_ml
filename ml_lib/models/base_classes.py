@@ -1,12 +1,16 @@
-from typing import Callable, Optional, TypeVar, Annotated, get_type_hints, Final, Literal, overload
+from typing import Callable, Optional, TypeVar, Annotated, get_type_hints, Final, Literal, overload, TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..experiment_tracking import Model as Database_Model
 
 import functools as ft
 import itertools as it
-from types import FunctionType
 from io import BytesIO, StringIO
+from logging import getLogger; log = getLogger(__name__)
+from types import FunctionType
 from inspect import signature
 from pathlib import Path
 
+from sqlalchemy.orm import Session
 import torch
 import torch.nn as nn
 
@@ -86,13 +90,23 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         - some useful functions
     """
      
-
+    name: Final[Optional[str]]=None
+    model_name: Optional[str]=None
+    description: Optional[str]=None
+    id: Optional[int]=None # id of the model in the database
     _dummy_param: nn.Parameter
 
-    def __init__(self, **hyperparameters):
+    predict: Optional[Callable] = None
+    sample: Optional[Callable] = None
+    do_training: Optional[Callable[..., None]] = None
+    do_epoch: Optional[Callable[..., None]] = None
+    do_pretraining: Optional[Callable[..., None]] = None
+
+    def __init__(self, name: Optional[str]=None, **hyperparameters):
         nn.Module.__init__(self)
         HasEnvironmentMixin.__init__(self)
         # self.device = _get_default_device()
+        self.model_name = name
         self._dummy_param = nn.Parameter()
         self.set_hyperparameters(**hyperparameters)
         self.__setup__()
@@ -106,12 +120,10 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         """
         pass
 
-    def predict(self, x) -> torch.Tensor: 
-        """Procedure used at inference time to compute the output"""
-        raise NotImplementedError
-
-    def forward(self, x) -> torch.Tensor: 
-        return self.predict(x)
+    """
+    model information
+    -----------------
+    """
 
     @property
     def device(self):
@@ -127,14 +139,21 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         return human_readable(self.num_parameters(trainable_only), 
                               precision=precision)
 
+    """
+    Creating, loading and saving
+    ----------------------------
+    """
+
     def save_checkpoint(self, file: Path|str|BytesIO):
         torch.save({
             "model_state_dict": self.state_dict(),
-            "hyperparameters": self.get_hyperparameters()
+            "hyperparameters": self.get_hyperparameters(), 
+            "name": self.model_name,
         }, file)
 
-
-    def load_checkpoint(self, checkpoint:Path|str|BytesIO|dict):
+    def load_checkpoint(self, checkpoint:Path|str|BytesIO|bytes|dict):
+        if isinstance(checkpoint, bytes):
+            checkpoint = BytesIO(checkpoint)
         if not isinstance(checkpoint, dict):
             checkpoint = torch.load(checkpoint)
         assert isinstance(checkpoint, dict)
@@ -145,7 +164,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         if not isinstance(checkpoint, dict):
             checkpoint = torch.load(checkpoint)
         assert isinstance(checkpoint, dict)
-        model = cls(**checkpoint["hyperparameters"]) # type: ignore
+        model = cls(name=checkpoint.get("name", None), **checkpoint["hyperparameters"]) # type: ignore
         model.load_state_dict(checkpoint["model_state_dict"]) # type: ignore
         return model
 
@@ -184,13 +203,76 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         for attr_name, value in hyperparameters.items():
             setattr(self, attr_name, value)
 
-    def __repr__(self):
-        s = StringIO()
-        s.write(f"{self.__class__.__name__}(\n")
-        for attr_name, value in self.get_hyperparameters().items():
-            s.write(f"    {attr_name}={value},\n")
-        s.write(")")
-        return s.getvalue()
+    def hash_hyperparameters(self):
+        """return a (kinda) unique identifier for the set of hyperparameters"""
+        return hash(frozenset(self.get_hyperparameters().items()))
+
+    def to_database_object(self):
+        from ..experiment_tracking import Model as Database_Model
+        return Database_Model.from_model(self)
+
+    def get_database_object(self, session: Session) -> Optional["Database_Model"]:
+        from ..experiment_tracking import Model as Database_Model
+        if self.id is not None:
+            return session.get(Database_Model, self.id)
+        elif self.model_name is not None:
+            return session.query(Database_Model).filter_by(name=self.model_name).first()
+        else:
+            return None
+
+    def sync_with_database_object(self, session: Session) -> None:
+        database_object = self.get_database_object(session)
+        if database_object is not None:
+            self.id = database_object.id
+            self.model_name = database_object.name
+
+    def save_to_database(self, session: Session, replace:bool = False) -> None:
+        from ..experiment_tracking import Model as Database_Model
+        if self.id is not None:
+            existing = session.get(Database_Model, self.id)
+            database_object = self.to_database_object()
+            match existing, replace:
+                case None, True:
+                    session.add(database_object)
+                case None, False:
+                    log.warn(f"Model {self} is not in the database, but has an id. Adding")
+                    session.add(database_object)
+                case _, True:
+                    session.merge(database_object)
+                case _, False:
+                    raise ValueError(f"Model {self} is already in the database, and replace is False")
+        elif self.model_name is not None:
+            existing = session.query(Database_Model).filter_by(name=self.model_name).first()
+            if existing is not None:
+                self.id = existing.id
+
+            database_object = self.to_database_object()
+            match existing, replace:
+                case None, True:
+                    session.add(database_object)
+                case None, False:
+                    log.warn(f"Model {self} is not in the database, but has a name. Adding")
+                    session.add(database_object)
+                case _, True:
+                    session.merge(database_object)
+                case _, False:
+                    raise ValueError(f"Model {self} is already in the database, and replace is False")
+        else: 
+            database_object = self.to_database_object()
+            session.add(self.to_database_object())
+
+        # import pdb; pdb.set_trace()
+        # assert database_object in session
+        session.commit()
+        self.sync_with_database_object(session)
+
+
+
+
+    """
+    Capabilities
+    ------------
+    """
 
     def has_pretraining_function(self):
         """returns True if the model has a `do_pretraining` function
@@ -202,7 +284,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         """returns True if the model has a `do_training` function
         This function will be used instead of the loss to train the model if available
         """
-        return hasattr(self, "do_training")
+        return self.do_training is not None
 
     def has_epoch_function(self):
         """returns True if the model has a `do_epoch` function
@@ -210,6 +292,34 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         (and `has_training_function` is False)
         """
         return hasattr(self, "do_epoch")
+
+    @property
+    def is_supervised(self) -> bool:
+        return self.predict is not None
+
+    @property
+    def is_generative(self) -> bool:
+        return self.generate is not None
+
+    """
+    Misc
+    ----
+    """
+
+    @classmethod
+    def get_model_type(cls):
+        if hasattr(cls, "name") and cls.name is not None:
+            return cls.name# type: ignore
+        return cls.__name__
+
+    def __repr__(self):
+        s = StringIO()
+        s.write(f"{self.__class__.__name__}(\n")
+        for attr_name, value in self.get_hyperparameters().items():
+            s.write(f"    {attr_name}={value},\n")
+        s.write(")")
+        return s.getvalue()
+
 
 
 class Supervised(Model):
@@ -243,6 +353,26 @@ class Supervised(Model):
 class Unsupervised(Model):
     pass
 
+class Generative(Unsupervised):
+
+    def sample(self, n: int = 1) -> torch.Tensor:
+        """sample from the model"""
+        raise NotImplementedError
+
+class SelfSupervised(Supervised):
+
+    def generate_input(self, x: torch.Tensor) -> torch.Tensor:
+        """generate an input for the model using a datapoint"""
+        raise NotImplementedError
+
+    def generate_ground_truth(self, x: torch.Tensor) -> torch.Tensor:
+        """generate a ground truth for the model using a datapoint"""
+        raise NotImplementedError
+
+    def compute_loss(self, x, loss_fun: Optional[Callable]=None):
+        x = self.generate_input(x)
+        gt = self.generate_ground_truth(x)
+        return super().compute_loss(x, gt, loss_fun=loss_fun)
 
 class AutoEncoder(Unsupervised):
     """Base class for autoencoders"""

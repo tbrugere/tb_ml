@@ -26,7 +26,9 @@ class Register(dict[str, T], Generic[T]):
 
     def _register_module(self, module: T, name: str|None=None) -> T:
         if name is None:
-            name = getattr(module, self.name_field, module.__name__)
+            if hasattr(module, self.name_field) and getattr(module, self.name_field) is not None:
+                name = getattr(module, self.name_field)
+            else:  name = module.__name__
         assert name is not None
 
         self[name] = module
