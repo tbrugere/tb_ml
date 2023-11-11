@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
 
+from torch.optim import Optimizer
+from torch.nn.utils.clip_grad import clip_grad_norm_
+
 from ..environment import HasEnvironmentMixin, Scope, scopevar_of_str, str_of_scopevar
 from ..misc import find_file
 from .annealing_scheduler import AnnealingScheduler, get_scheduler
@@ -129,7 +132,7 @@ class TensorboardHook(TrainingHook):
         super().__init__(interval)
         if tensorboard_dir is None:
             tensorboard_path = find_file([Path("tensorboard"), Path("../tensorboard"), Path(f"{os.environ['HOME']}/tensorboard")])
-            if tensorboard_path is None: tensorboard_dir = "tensorboard"
+            if tensorboard_path is None: tensorboard_path = Path("tensorboard")
         else : tensorboard_path = Path(tensorboard_dir)
         tensorboard_path = tensorboard_path / run_name
         self.tensorboard = tensorboard
@@ -144,4 +147,24 @@ class TensorboardHook(TrainingHook):
         self.writer.add_scalars('loss', loss_dict, step)
 
 
-    
+class OptimizerHook(TrainingHook):
+    def __init__(self, optimizer: Optimizer, clip_gradient: Optional[float] =None, interval: int=1):
+        super().__init__(interval)
+        self.optimizer = optimizer
+        self.clip_gradient = clip_gradient
+
+    def hook(self):
+        model = self.env.get("model")
+        if self.clip_gradient is not None:
+            clip_grad_norm_(model.parameters(), self.clip_gradient)
+
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+
+class LRSchedulerHook(TrainingHook):
+    def __init__(self, scheduler, interval: int=1):
+        super().__init__(interval)
+        self.scheduler = scheduler
+
+    def hook(self):
+        self.scheduler.step()

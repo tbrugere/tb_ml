@@ -11,14 +11,13 @@ from torch.utils.data import DataLoader, Dataset
 from ..models import load_model
 from ..models.base_classes import Model
 from ..datasets import load_dataset
-from .training_hooks import TrainingHook
+from .training_hooks import TrainingHook, OptimizerHook, LRSchedulerHook
 from ..environment import Environment, HierarchicEnvironment
 
 
 class Trainer():
 
     model: Model
-    optimizer: optim.Optimizer
     data: DataLoader
     
     """The eventual loss function"""
@@ -50,7 +49,8 @@ class Trainer():
                  step_hooks: list[TrainingHook] = [], 
                  epoch_hooks: list[TrainingHook] = [],
                  environment_variables: dict = {}, 
-                 fake_batch_size:int = 1
+                 fake_batch_size:int = 1, 
+                 clip_grad_norm: float|None = 1., 
                  ):
         #TODO: take a train and validation set, or do the separation in-house
 
@@ -65,10 +65,6 @@ class Trainer():
                 raise NotImplementedError
         if not isinstance(data, DataLoader):
             raise NotImplemented #TODO wrap it in a DataLoader
-        if isinstance(optimizer, str):
-            optimizer = vars(torch.optim)[optimizer]
-        assert isinstance(optimizer, type)
-        assert issubclass(optimizer, torch.optim.Optimizer)
 
         ################ Setup Environments
         self.global_env = Environment()
@@ -77,7 +73,7 @@ class Trainer():
         self.iter_env = HierarchicEnvironment(parent=self.epoch_env)
 
         ################ Actual training stuff
-        self.optimizer = optimizer(params=model.parameters(), **optimizer_arguments)
+        optimizer_hook = self.get_optimizer_hook(optimizer, optimizer_arguments, clip_grad_norm=clip_grad_norm)
         self.model = model.to(device)
         self.loss = loss; 
         self.data = data
@@ -88,6 +84,8 @@ class Trainer():
 
 
         ################ set hooks
+        step_hooks.append(optimizer_hook)
+        #TODO: add lr_scheduler
         for hook in step_hooks:
             hook.set_environment(self.iter_env)
         for hook in epoch_hooks:
@@ -106,6 +104,7 @@ class Trainer():
             device=device, 
             data=self.data
         ))
+
     @classmethod
     def from_config(cls, config: dict):
         raise NotImplementedError #TODO
@@ -117,7 +116,6 @@ class Trainer():
             iteration=self.iteration_n
         ))
         self.model.train()
-        self.optimizer.zero_grad()
 
         batch = self.move_batch_to(batch, self.device)
         match batch:
@@ -136,10 +134,6 @@ class Trainer():
                                           record_result_as="loss")
         loss.backward()
         
-        if (self.iteration_n - 1) % self.fake_batch_size == 0:
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-
         for hook in self.step_hooks:
             hook()
 
@@ -187,4 +181,26 @@ class Trainer():
                 return type(seq)(i.to(device) for i in seq)
             case _:
                 return batch.to(device)
+    
+    @staticmethod
+    def get_optimizer(name: str|Type[torch.optim.Optimizer], model_parameters, optimizer_arguments):
+        if isinstance(name, str):
+            optimizer_type = vars(torch.optim)[name]
+        else: optimizer_type = name
+        assert isinstance(optimizer_type, type)
+        assert issubclass(optimizer_type, torch.optim.Optimizer)
+        return optimizer_type(model_parameters, **optimizer_arguments)
+
+    def get_optimizer_hook(self, name: str|Type[torch.optim.Optimizer], optimizer_arguments, clip_grad_norm=None, fake_batch_size=1):
+        optimizer = self.get_optimizer(name, self.model.parameters(), optimizer_arguments)
+        return OptimizerHook(optimizer, clip_gradient=clip_grad_norm, interval=fake_batch_size)
+
+    @staticmethod
+    def get_lr_scheduler(name: str, optimizer, scheduler_arguments):
+        scheduler_type = vars(torch.optim.lr_scheduler)[name]
+        return scheduler_type(optimizer, **scheduler_arguments)
+
+    def get_lr_scheduler_hook(self, name: str, optimizer, scheduler_arguments):
+        scheduler = self.get_lr_scheduler(name, optimizer, scheduler_arguments)
+        return LRSchedulerHook(scheduler)
 
