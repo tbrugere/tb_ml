@@ -73,7 +73,6 @@ class Trainer():
         self.iter_env = HierarchicEnvironment(parent=self.epoch_env)
 
         ################ Actual training stuff
-        optimizer_hook = self.get_optimizer_hook(optimizer, optimizer_arguments, clip_grad_norm=clip_grad_norm)
         self.model = model.to(device)
         self.loss = loss; 
         self.data = data
@@ -81,6 +80,7 @@ class Trainer():
         self.n_epochs = n_epochs
         self.fake_batch_size = fake_batch_size
         self.device = device
+        optimizer_hook = self.get_optimizer_hook(optimizer, optimizer_arguments, clip_grad_norm=clip_grad_norm)
 
 
         ################ set hooks
