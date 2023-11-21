@@ -108,6 +108,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         # self.device = _get_default_device()
         self.model_name = name
         self._dummy_param = nn.Parameter()
+        hyperparameters = self.fill_with_defaults(hyperparameters)
         self.set_hyperparameters(**hyperparameters)
         self.__setup__()
 
@@ -202,6 +203,15 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
             raise ValueError(f"Unknown hyperparameters: {set(hyperparameters.keys()) - set(self.list_hyperparameters())}")
         for attr_name, value in hyperparameters.items():
             setattr(self, attr_name, value)
+
+    @classmethod
+    def fill_with_defaults(cls, partial_hyperparameters, allow_missing=False):
+        for attr_name in cls.list_hyperparameters(return_types=False):
+            if attr_name not in partial_hyperparameters and hasattr(cls, attr_name):
+                partial_hyperparameters[attr_name] = getattr(cls, attr_name)
+            elif attr_name not in partial_hyperparameters and not allow_missing:
+                raise ValueError(f"Missing hyperparameter {attr_name}, and no default value is set")
+        return partial_hyperparameters
 
     def hash_hyperparameters(self):
         """return a (kinda) unique identifier for the set of hyperparameters"""
