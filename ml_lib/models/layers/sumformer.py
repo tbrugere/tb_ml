@@ -22,6 +22,34 @@ class SumAggregator(nn.Module):
     def forward(self, node_embeddings):
         return node_embeddings.sum(dim=-2, keepdim=self.keepdim)
 
+class MaxAggregator(nn.Module):
+    def __init__(self, keepdim=False):
+        super().__init__()
+        self.keepdim = keepdim
+        
+    def forward(self, node_embeddings):
+        return node_embeddings.max(dim=-2, keepdim=self.keepdim)[0]
+
+class CombinedAggregator(nn.Module):
+    aggregators: nn.ModuleList
+    combine: nn.Linear
+
+    def __init__(self, average=True, sum=True, max=True, keepdim=False):
+        super().__init__()
+        self.aggregators = nn.ModuleList()
+        if average:
+            self.aggregators.append(AverageAggregator(keepdim=keepdim))
+        if sum:
+            self.aggregators.append(SumAggregator(keepdim=keepdim))
+        if max:
+            self.aggregators.append(MaxAggregator(keepdim=keepdim))
+        self.combine = nn.Linear(len(self.aggregators), 1)
+
+    def forward(self, node_embeddings):
+        aggregations = [aggregator(node_embeddings) for aggregator in self.aggregators]
+        aggregations = torch.stack(aggregations, dim=-1)
+        return self.combine(aggregations).squeeze(-1)
+
 class SumformerInnerBlock(nn.Module):
     """
     Here we implement the sumformer "attention" block (in quotes, because it is not really attention)
@@ -74,6 +102,10 @@ class SumformerInnerBlock(nn.Module):
                 self.aggregation = AverageAggregator(keepdim=True)
             case "sum":
                 self.aggregation = SumAggregator(keepdim=True)
+            case "max":
+                self.aggregation = MaxAggregator(keepdim=True)
+            case "combined":
+                self.aggregation = CombinedAggregator(keepdim=True)
             case _:
                 raise ValueError(f"Invalid aggregation {aggregation}")
 
