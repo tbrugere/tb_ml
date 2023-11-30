@@ -5,10 +5,12 @@ from io import StringIO
 from logging import info
 import os
 from pathlib import Path
+from logging import getLogger; logger = getLogger(__name__)
 
 if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
+    from sqlalchemy.orm import Session
 
 from torch.optim import Optimizer
 from torch.nn.utils.clip_grad import clip_grad_norm_
@@ -20,11 +22,13 @@ from .annealing_scheduler import AnnealingScheduler, get_scheduler
 @dataclass
 class TrainingHook(HasEnvironmentMixin):
 
-    interval: int = 1
+    interval: int|None = 1
     # env: Environment = field(default_factory=Environment)
     __post_init__ = HasEnvironmentMixin.__init__
 
     def __call__(self):
+        if self.interval is None: 
+            self.env.environment.run_function(self.hook) #this is for end hooks (only run once)
         n_iteration = self.env.iteration
 
         new_values = None
@@ -36,6 +40,19 @@ class TrainingHook(HasEnvironmentMixin):
 
     def hook(self) -> Optional[dict]:
         raise NotImplementedError
+
+    def set_state(self):
+        """Set the state of the hook to the current state of the environment.
+        Useful when the training is resumed from a checkpoint.
+        Read the state of the environment and set the state of the hook accordingly.
+        """
+        pass
+
+class EndHook(TrainingHook):
+    def __init__(self):
+        super().__init__(interval=None)
+    def __call__(self):
+        self.env.environment.run_function(self.hook) #no checking stuff because this is run once
 
 class LoggerHook(TrainingHook):
     variables: list[tuple[Scope, str]]
@@ -121,9 +138,18 @@ class TqdmHook(TrainingHook):
 
     def hook(self):
         if self.progressbar is None:
-            totaliter =self.env.total_iter
-            self.progressbar = self.tqdm(total=totaliter)
+            self.reset_progressbar()
+        assert self.progressbar is not None
         self.progressbar.update()
+
+    def reset_progressbar(self, initial: int = 0):
+        totaliter =self.env.total_iter
+        self.progressbar = self.tqdm(total=totaliter, initial=initial)
+
+    def set_state(self):
+        step = self.env.iteration
+        self.reset_progressbar(initial=step)
+
 
 class TensorboardHook(TrainingHook):
     
@@ -168,3 +194,73 @@ class LRSchedulerHook(TrainingHook):
 
     def hook(self):
         self.scheduler.step()
+
+
+
+class DatabaseHook(TrainingHook):
+    database_session: "Session"
+    model_id: int
+    training_run_id: int
+
+    def __init__(self, interval: int=1, *, database_session: "Session", checkpoint_interval: int = 100, commit_interval: int = 1000):
+        super().__init__(interval)
+        self.database_session = database_session
+        self.table = table
+
+    def hook(self):
+        from ..experiment_tracking import 
+        self.database.insert(self.table, self.env)
+
+
+#xoxb-5426916209457-6272285530356-LXXAgdtYi3IQ0LKVMioCtDrl
+class SlackHook(EndHook):
+    token: str
+    channel: str
+
+    def __init__(self, *, token:str|None=None, channel:str|None=None, ):
+        super().__init__()
+        if token is None:
+            token = os.environ["SLACK_TOKEN"]
+        if channel is None:
+            channel = os.environ["SLACK_CHANNEL"]
+        if channel.startswith("#"):
+            import requests
+            response = requests.get("https://slack.com/api/conversations.list", params={
+                "token": token
+            })
+            assert response.ok
+            response = response.json()
+            assert response["ok"]
+            channels = response["channels"]
+            channel_name = channel[1:]
+            for channel_i in channels:
+                if channel_i["name"] == channel_name:
+                    channel = channel_i["id"]
+                    break
+            else:
+                logger.error(f"SlackHook: Channel {channel_name} not found, will not send slack messages")
+
+
+        assert channel is not None
+        self.token = token
+        self.channel = channel
+
+    def hook(self):
+        import requests
+        model = self.env.get("model")
+        model_name = model.model_name
+        if model_name is not None:
+            train_info = model_name
+        else:
+            import sys
+            train_info = " ".join(sys.argv)
+
+        requests.post("https://slack.com/api/chat.postMessage", data={
+            "token": self.token,
+            "channel": self.channel,
+            "text": f"Training finished for {train_info}"
+        })
+
+        
+
+

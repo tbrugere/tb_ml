@@ -48,6 +48,7 @@ class Trainer():
                  device = "cuda:0", 
                  step_hooks: list[TrainingHook] = [], 
                  epoch_hooks: list[TrainingHook] = [],
+                 end_hooks: list[TrainingHook] = [],
                  environment_variables: dict = {}, 
                  fake_batch_size:int = 1, 
                  clip_grad_norm: float|None = 1., 
@@ -80,7 +81,7 @@ class Trainer():
         self.n_epochs = n_epochs
         self.fake_batch_size = fake_batch_size
         self.device = device
-        optimizer_hook = self.get_optimizer_hook(optimizer, optimizer_arguments, clip_grad_norm=clip_grad_norm)
+        optimizer_hook = self.get_optimizer_hook(optimizer, optimizer_arguments, clip_grad_norm=clip_grad_norm, fake_batch_size=fake_batch_size)
 
 
         ################ set hooks
@@ -90,8 +91,11 @@ class Trainer():
             hook.set_environment(self.iter_env)
         for hook in epoch_hooks:
             hook.env.set_environment(self.epoch_env)
+        for hook in end_hooks:
+            hook.set_environment(self.global_env)
         self.step_hooks = step_hooks
         self.epoch_hooks = epoch_hooks
+        self.end_hooks = end_hooks
 
 
         ################ Record stuff in environment
@@ -166,6 +170,9 @@ class Trainer():
         for _ in range(self.n_epochs):
             self.epoch()
             self.epoch_n += 1
+
+        for hook in self.end_hooks:
+            hook()
 
     @staticmethod
     def move_batch_to(batch, device):
