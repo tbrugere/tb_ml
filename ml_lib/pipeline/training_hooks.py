@@ -208,11 +208,12 @@ class DatabaseHook(TrainingHook):
         self.table = table
 
     def hook(self):
-        from ..experiment_tracking import 
+        """NOT IMPLEMENTED YET"""
+        raise NotImplementedError
+        from ..experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
         self.database.insert(self.table, self.env)
 
 
-#xoxb-5426916209457-6272285530356-LXXAgdtYi3IQ0LKVMioCtDrl
 class SlackHook(EndHook):
     token: str
     channel: str
