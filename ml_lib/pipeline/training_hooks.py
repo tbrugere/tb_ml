@@ -128,6 +128,7 @@ class KLAnnealingHook(TrainingHook):
 
 class TqdmHook(TrainingHook):
     progressbar: Optional["tqdm"] = None
+    last_known_epoch: int = 0
 
     def __init__(self, interval:int =1, tqdm=None):
         super().__init__(interval)
@@ -140,11 +141,16 @@ class TqdmHook(TrainingHook):
         if self.progressbar is None:
             self.reset_progressbar()
         assert self.progressbar is not None
+        if self.env.epoch != self.last_known_epoch:
+            self.last_known_epoch = self.env.epoch
+            self.progressbar.set_description(f"Epoch {self.env.epoch}")
         self.progressbar.update()
 
     def reset_progressbar(self, initial: int = 0):
         totaliter =self.env.total_iter
-        self.progressbar = self.tqdm(total=totaliter, initial=initial)
+        epoch = self.env.epoch
+        self.last_known_epoch = epoch
+        self.progressbar = self.tqdm(total=totaliter, initial=initial, desc=f"Epoch {epoch}")
 
     def set_state(self):
         step = self.env.iteration
