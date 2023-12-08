@@ -43,6 +43,12 @@ class MLP(nn.Sequential):
                 self.add_module(f"norm_{i}", nn.BatchNorm1d(output_dim))
             self.add_module(f"activation_{i}", activation())
 
+    def forward(self, x):
+        *batch, input_dim = x.shape
+        x = x.view(-1, input_dim)
+        y = super().forward(x)
+        return y.view(*batch, -1)
+
 class MultiInputLinear(nn.Module):
     """
     MultiInputLinear is a module that performs a 
