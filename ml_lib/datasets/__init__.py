@@ -13,6 +13,7 @@ from . import simple_shapes
 from ..register import Loader
 from .registration import register, transform_register
 from .splitting import split_arrays, split_indices
+from .base_classes import Dataset
 
 load_dataset = Loader(register)
 """Dataset loader (used by the automated pipeline)"""
@@ -21,4 +22,5 @@ __all__ = ['load_dataset',
            'register', 
            'transform_register', 
            'split_arrays', 
-           'split_indices']
+           'split_indices', 
+           'Dataset']
