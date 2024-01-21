@@ -1,4 +1,4 @@
-from typing import Callable, Optional, TypeVar, Annotated, get_type_hints, Final, Literal, overload, TYPE_CHECKING
+from typing import Callable, Optional, TypeVar, Annotated, get_type_hints, Final, Literal, overload, TYPE_CHECKING, dataclass_transform, Any
 if TYPE_CHECKING:
     from ..experiment_tracking import Model as Database_Model
 
@@ -42,6 +42,7 @@ class ModelMeta(type):
 
     @staticmethod
     def use_model_context(f):
+        __tracebackhide__ = True
         @ft.wraps(f)
         def wrapped(self, *args, **kwargs):
             device = self.device
@@ -77,7 +78,7 @@ class HasLossMixin:
         del loss_params
         raise NotImplementedError("Loss function should be defined")
 
-
+@dataclass_transform(kw_only_default=True, field_specifiers=(Hyperparameter[Any],))
 class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
     """
     Base class for this library’s models.
@@ -152,6 +153,11 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
             "name": self.model_name,
         }, file)
 
+    def get_checkpoint(self):
+        output = BytesIO()
+        self.save_checkpoint(output)
+        return output.getvalue()
+
     def load_checkpoint(self, checkpoint:Path|str|BytesIO|bytes|dict):
         if isinstance(checkpoint, bytes):
             checkpoint = BytesIO(checkpoint)
@@ -168,6 +174,11 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         model = cls(name=checkpoint.get("name", None), **checkpoint["hyperparameters"]) # type: ignore
         model.load_state_dict(checkpoint["model_state_dict"]) # type: ignore
         return model
+
+    """
+    Hyperparameters
+    ---------------
+    """
 
     @overload
     @classmethod
