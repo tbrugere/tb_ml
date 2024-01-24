@@ -1,4 +1,6 @@
-from typing import Callable, Optional, TypeVar, Annotated, get_type_hints, Final, Literal, overload, TYPE_CHECKING, dataclass_transform, Any
+from typing import (Callable, Optional, TypeVar, Annotated, get_type_hints, 
+                    Final, Literal, overload, TYPE_CHECKING, dataclass_transform,
+                    Any, ParamSpec, Generic)
 if TYPE_CHECKING:
     from ..experiment_tracking import Model as Database_Model
 
@@ -17,6 +19,8 @@ import torch.nn as nn
 from ..environment import HasEnvironmentMixin
 from ..misc import human_readable
 
+Parameters = ParamSpec("Parameters")
+ReturnType = TypeVar("ReturnType")
 T = TypeVar("T")
 IS_HYPERPARAM = "hyperparameter"
 Hyperparameter = Annotated[T, IS_HYPERPARAM]
@@ -79,7 +83,9 @@ class HasLossMixin:
         raise NotImplementedError("Loss function should be defined")
 
 @dataclass_transform(kw_only_default=True, field_specifiers=(Hyperparameter[Any],))
-class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
+class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, 
+            Generic[Parameters, ReturnType], 
+            metaclass=ModelMeta):
     """
     Base class for this library’s models.
     Got a bunch of sugar including:
@@ -121,6 +127,17 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
         only those should be read in this function.
         """
         pass
+
+    """
+    Typing for torch functions: 
+    ---------------------------
+
+    Basically tell the typechecker that forward and __call__ have the same 
+    signature.
+    """
+
+    forward: Callable[Parameters, ReturnType]
+    __call__: Callable[Parameters, ReturnType]
 
     """
     model information
@@ -208,10 +225,23 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, metaclass=ModelMeta):
                 for attr_name in self.list_hyperparameters()}
 
     def set_hyperparameters(self, *, allow_missing=False, **hyperparameters):
-        if not allow_missing and set(self.list_hyperparameters()) != set(hyperparameters.keys()):
-            raise ValueError(f"Missing hyperparameters: {set(self.list_hyperparameters()) - set(hyperparameters.keys())}")
-        elif allow_missing and not set(hyperparameters.keys()).issubset(set(self.list_hyperparameters())):
-            raise ValueError(f"Unknown hyperparameters: {set(hyperparameters.keys()) - set(self.list_hyperparameters())}")
+        required = set(self.list_hyperparameters())
+        provided = set(hyperparameters.keys())
+        model_name = self.get_model_type()
+        match (required-provided, provided-required):
+            case None, None:
+                pass
+            case _, None if allow_missing:
+                pass
+            case missing, None:
+                raise ValueError(f"Missing hyperparameters for {model_name} : {missing}")
+            case None, unknown:
+                raise ValueError(f"Unknown hyperparameters for {model_name}: {unknown}")
+            case _, _:
+                raise ValueError(f"Wrong hyperparameters for {model_name}: \n"
+                                 f"expected: {required}\n"
+                                 f"provided (including defaults: {provided})\n")
+
         for attr_name, value in hyperparameters.items():
             setattr(self, attr_name, value)
 

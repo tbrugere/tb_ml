@@ -4,10 +4,9 @@ from typing import overload, TypeVar, Callable, Generic, Optional
 import functools as ft
 
 T = TypeVar("T", bound=type)
+U = TypeVar("U", bound=type)
 
 class Register(dict[str, T], Generic[T]):
-
-    U = TypeVar("U", bound=T)#type:ignore
 
     def __init__(self, t: T, name_field: str = "name"):
         """
@@ -35,21 +34,21 @@ class Register(dict[str, T], Generic[T]):
         return module
 
     @overload
-    def __call__(self, m: U, /) -> U:
+    def __call__(self, t: U, /) -> U:
         ...
 
     @overload
-    def __call__(self, name: str, /) -> Callable[[U], U]:
+    def __call__(self, name: str, /) -> Callable[[T], T]:
         ...
 
-    def __call__(self, arg, /): #type: ignore
+    def __call__(self, arg: str|T, /): 
         if isinstance(arg, type) and issubclass(arg, self.t):
             self._register_module(arg)
             return arg
         elif isinstance(arg, str):
-            return ft.partial(self._register_module, name=arg)
-        else: 
-            raise ValueError(f"register got argument {arg} of type {type(arg)}")
+            r: Callable = ft.partial(self._register_module, name=arg)
+            return r
+        raise ValueError(f"register got argument {arg} of type {type(arg)}")
 
 class Loader(Generic[T]):
 
