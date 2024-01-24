@@ -1,6 +1,7 @@
 from typing import (Callable, Optional, TypeVar, Annotated, get_type_hints, 
-                    Final, Literal, overload, TYPE_CHECKING, dataclass_transform,
+                    Final, Literal, overload, TYPE_CHECKING,
                     Any, ParamSpec, Generic)
+# dataclass_transform <-- wait for python3.12
 if TYPE_CHECKING:
     from ..experiment_tracking import Model as Database_Model
 
@@ -82,7 +83,7 @@ class HasLossMixin:
         del loss_params
         raise NotImplementedError("Loss function should be defined")
 
-@dataclass_transform(kw_only_default=True, field_specifiers=(Hyperparameter[Any],))
+# @dataclass_transform(kw_only_default=True, field_specifiers=(Hyperparameter[Any],))
 class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, 
             Generic[Parameters, ReturnType], 
             metaclass=ModelMeta):
