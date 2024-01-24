@@ -11,6 +11,8 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
     from sqlalchemy.orm import Session
+    from ..experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
+
 
 from torch.optim import Optimizer
 from torch.nn.utils.clip_grad import clip_grad_norm_
@@ -18,6 +20,8 @@ from torch.nn.utils.clip_grad import clip_grad_norm_
 from ..environment import HasEnvironmentMixin, Scope, scopevar_of_str, str_of_scopevar
 from ..misc import find_file
 from .annealing_scheduler import AnnealingScheduler, get_scheduler
+from ..register import Register
+
 
 @dataclass
 class TrainingHook(HasEnvironmentMixin):
@@ -41,6 +45,10 @@ class TrainingHook(HasEnvironmentMixin):
     def hook(self) -> Optional[dict]:
         raise NotImplementedError
 
+    def setup(self):
+        """Function called before running the training, Only global env variables are set up"""
+        pass
+
     def set_state(self):
         """Set the state of the hook to the current state of the environment.
         Useful when the training is resumed from a checkpoint.
@@ -48,12 +56,24 @@ class TrainingHook(HasEnvironmentMixin):
         """
         pass
 
+register = Register(TrainingHook)
+
 class EndHook(TrainingHook):
     def __init__(self):
         super().__init__(interval=None)
     def __call__(self):
         self.env.environment.run_function(self.hook) #no checking stuff because this is run once
 
+class EndAndStepHook(EndHook):
+    def __init__(self, interval=1):
+        TrainingHook.__init__(self, interval=interval)
+    def __call__(self):
+        if self.env.get("training_finished"):
+            EndHook.__call__(self)
+        else:
+            TrainingHook.__call__(self)
+
+@register
 class LoggerHook(TrainingHook):
     variables: list[tuple[Scope, str]]
 
@@ -71,6 +91,7 @@ class LoggerHook(TrainingHook):
 
         info(s.getvalue())
 
+@register
 class CurveHook(TrainingHook):
     scope: Scope
     variable: str
@@ -101,6 +122,7 @@ class CurveHook(TrainingHook):
         ax.set_ylabel(self.variable)
         ax.plot(np.arange(len(values)) * self.interval, values)
 
+@register
 class KLAnnealingHook(TrainingHook):
     scope: Scope
     variable: str
@@ -126,6 +148,7 @@ class KLAnnealingHook(TrainingHook):
     def draw(self, ax: "matplotlib.axes.Axes|None" = None):
         self.scheduler.draw(ax=ax)
 
+@register
 class TqdmHook(TrainingHook):
     progressbar: Optional["tqdm"] = None
     last_known_epoch: int = 0
@@ -156,7 +179,7 @@ class TqdmHook(TrainingHook):
         step = self.env.iteration
         self.reset_progressbar(initial=step)
 
-
+@register
 class TensorboardHook(TrainingHook):
     
     def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  log_vars = ["loss"]):
@@ -178,8 +201,14 @@ class TensorboardHook(TrainingHook):
             loss_dict[var] = self.env.get(var, scope)
         self.writer.add_scalars('loss', loss_dict, step)
 
-
+@register
 class OptimizerHook(TrainingHook):
+    """Probably the most important hook: runs the optimizer. 
+    Without this hook the trainer won't train.
+
+    No need to add it in the trainer configuration / call, it will be 
+    automagically added.
+    """
     def __init__(self, optimizer: Optimizer, clip_gradient: Optional[float] =None, interval: int=1):
         super().__init__(interval)
         self.optimizer = optimizer
@@ -191,8 +220,9 @@ class OptimizerHook(TrainingHook):
             clip_grad_norm_(model.parameters(), self.clip_gradient)
 
         self.optimizer.step()
-        self.optimizer.zero_grad()
+        self.optimizer.zero_grad(set_to_none=True)
 
+@register
 class LRSchedulerHook(TrainingHook):
     def __init__(self, scheduler, interval: int=1):
         super().__init__(interval)
@@ -201,25 +231,88 @@ class LRSchedulerHook(TrainingHook):
     def hook(self):
         self.scheduler.step()
 
-
-
-class DatabaseHook(TrainingHook):
+@register
+class DatabaseHook(EndAndStepHook):
     database_session: "Session"
-    model_id: int
-    training_run_id: int
+    model_id: int|None = None
+    training_run_id: int|None = None
 
-    def __init__(self, interval: int=1, *, database_session: "Session", checkpoint_interval: int = 100, commit_interval: int = 1000):
+    training_run: "DBTraining_run|None" = None
+
+    checkpoint_interval: int
+    commit_interval: int
+
+    loss_name: str = "loss"
+    metrics: list[str] 
+
+    def __init__(self, interval: int=1, *, database_session: "Session", checkpoint_interval: int = 100, commit_interval: int = 100, training_run_id: int|None=None, 
+                 loss_name="loss", metrics=[]):
         super().__init__(interval)
+        assert checkpoint_interval%interval == 0
+        assert commit_interval % interval == 0
         self.database_session = database_session
-        self.table = table
+
+        self.checkpoint_interval = checkpoint_interval
+        self.commit_interval = commit_interval
+        self.training_run_id = training_run_id
+
+        self.loss_name = loss_name
+        self.metrics = metrics
+
 
     def hook(self):
-        """NOT IMPLEMENTED YET"""
-        raise NotImplementedError
-        from ..experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
-        self.database.insert(self.table, self.env)
+        from ..experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
+        step: int = self.env.step
+        training_finished = self.env.get("training_finished") or False
+        training_step: DBTraining_step = self.get_training_step(training_finished)
+        self.database_session.add(training_step)
+        if (step + 1) % self.commit_interval == 0:
+            self.database_session.commit()
+
+    def setup(self):
+        # from ..experiment_tracking import Training_run as DBTraining_run
+        dbtraining_run = self.env.get("database_object")
+        if dbtraining_run is None: raise ValueError("tried to create a database hook with no database object in the environment")
+
+    def get_training_step(self, is_last):
+        from ..experiment_tracking import Training_step as DBTraining_step, Checkpoint as DBCheckpoint
+        from datetime import datetime
+        step: int = self.env.step
+        epoch: int = self.env.epoch
+        training_run = self.env.get("training_run_db")
+        if training_run is None:
+            raise ValueError("Tried to use DatabaseHook without a training_run_db object in the environment")
+            
+        loss = self.env.get(self.loss_name)
+        step_time = datetime.now()
+        if self.metrics:
+            metrics = [self.env.get(metric) for metric in self.metrics]
+        elif (env_metrics:= self.env.get("metrics")) is not None:
+            metrics = env_metrics
+        else: metrics = []
 
 
+        
+        training_step: DBTraining_step= DBTraining_step(
+                training_run=training_run, 
+                step=step, 
+                epoch=epoch, 
+                step_time=step_time, 
+                loss=loss, 
+                metrics=metrics, 
+                )
+
+        if ((step + 1) % self.checkpoint_interval) == 0:
+            model = self.env.model
+            checkpoint = DBCheckpoint.from_model(
+                    model, is_last=is_last, step=training_step)
+            self.database_session.add(training_step)
+            self.database_session.add(checkpoint)
+
+        return training_step
+
+
+@register
 class SlackHook(EndHook):
     token: str
     channel: str

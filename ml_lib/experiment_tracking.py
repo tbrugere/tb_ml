@@ -5,7 +5,7 @@ Still writing, not even nearly production ready (or even working) dont use
 from typing import Optional, Any, TYPE_CHECKING, Self
 from sqlalchemy import create_engine, select
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
-from sqlalchemy.types import JSON
+from sqlalchemy.types import JSON, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
 
 from .models.base_classes import Model as Model_
@@ -101,13 +101,13 @@ class Checkpoint(Base):
     __tablename__ = 'checkpoints'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     is_last: Mapped[bool] = mapped_column(Boolean)
-    checkpoint: Mapped[Any] = mapped_column(PickleType) 
+    checkpoint: Mapped[bytes] = mapped_column(LargeBinary) 
 
     model_id: Mapped[int] = mapped_column(Integer, ForeignKey('models.id'))
     model: Mapped[Model] = relationship('Model', back_populates='checkpoints')
 
     step_id: Mapped[int] = mapped_column(Integer, ForeignKey('steps.id'))
-    step: Mapped[Optional["Training_step"]] = relationship('Training_step', back_populates='checkpoints')
+    step: Mapped["Training_step"] = relationship('Training_step', back_populates='checkpoints')
 
     tests: Mapped[list["Test"]] = relationship('Test', back_populates='checkpoint')
 
@@ -118,11 +118,9 @@ class Checkpoint(Base):
     @classmethod
     def from_model(cls, 
                    model: Model_, 
-                   model_id: int,
                    step: Optional["Training_step"] = None, 
                    is_last: bool = False):
         return cls(
-            model_id=model_id,
             model=model,
             step=step,
             is_last=is_last,
@@ -148,7 +146,7 @@ class Training_step(Base):
     training_run_id: Mapped[int] = mapped_column(Integer, ForeignKey('training_runs.id'))
     training_run: Mapped[Training_run] = relationship('Training_run', back_populates='steps')
 
-    steps: Mapped[int] = mapped_column(Integer)
+    step: Mapped[int] = mapped_column(Integer)
     epoch: Mapped[int] = mapped_column(Integer)
     step_time: Mapped[DateTime] = mapped_column(DateTime)
 
