@@ -37,7 +37,7 @@ class Training_parameters(BaseModel):
 
     environment_variables: dict[str, Any] = Field(default_factory=dict)
 
-    optimize: bool = True
+    performance_tricks: bool = True
     """enables various optimizations. Set to false to help debugging"""
 
 class Trainer():
@@ -72,8 +72,6 @@ class Trainer():
 
     database_session: "DBSession|None"
 
-    optimize: bool=True
-
     def __init__(self, model: Model, 
                  data: Union[Dataset, DataLoader, Sequence],
                  training_parameters: Training_parameters, 
@@ -85,7 +83,6 @@ class Trainer():
                  database: "DBSession"|None = None, 
                  db_experiment: "DBExperiment|int|None" = None, 
                  resume_from: "int|DBTraining_run|None" = None, 
-                 optimize: bool=True, 
                  ):
         #TODO: take a train and validation set, or do the separation in-house
 
@@ -120,7 +117,6 @@ class Trainer():
         self.n_epochs = training_parameters.n_epochs
         self.fake_batch_size = training_parameters.fake_batch_size
         self.device = device
-        self.optimize = optimize
         optimizer_hook = self.get_optimizer_hook(training_parameters.optimizer, 
                                                  training_parameters.optimizer_arguments, 
                                                  clip_grad_norm=training_parameters.clip_grad_norm, 
@@ -181,7 +177,8 @@ class Trainer():
         ))
         self.model.train()
 
-        batch = self.move_batch_to(batch, self.device)
+        batch = self.move_batch_to(batch, self.device, 
+                    non_blocking=self.training_parameters.performance_tricks)
         match batch:
             case dict():
                 self.iter_env.record_dict(batch)
