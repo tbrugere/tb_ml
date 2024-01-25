@@ -11,9 +11,21 @@ from .misc.torch_functions import broadcastable
 class FeatureType():
     name: str
     dim: int
-    extract: Callable[..., torch.Tensor] = dataclass_field(default=lambda x: x, repr=False)
+    extract: Callable[..., torch.Tensor]|None = None
     loss_coef: float = 1.
     """Extracts the feature from the input, returns a tensor of shape (batch, dim)"""""
+
+    def _extract(self, x):
+        from ml_lib.datasets.datapoint import Datapoint
+        if self.extract is not None:
+            return self.extract(x)
+        if isinstance(x, Datapoint):
+            return x.get_feature(self.name)
+        if isinstance(x, dict):
+            return x[self.name]
+        if hasattr(x, self.name):
+            return getattr(x, self.name)
+        raise ValueError(f"Couldn't find how to get data {self.name} out of object {x}")
 
     def compute_loss(self, input, target, reduce = True):
         """Always takes an unnormalized logit for input, 
@@ -30,7 +42,7 @@ class FeatureType():
         return input
 
     def get_features(self, input):
-        return self.encode(self.extract(input))
+        return self.encode(self._extract(input))
 
 
 class MSEFeature(FeatureType):
@@ -60,6 +72,20 @@ class BinaryFeature(FeatureType):
 
 @dataclass
 class FeatureSpecification():
+    """
+    Used to keep track of the signification of the features used in a datapoint 
+    (node features / edge features / set features / simple feature vector).
+    It keeps track of how the feature is encoded
+
+    for example if the datapoint has 2 continuous coordinates, a discrete label with 5 possible values, 
+    and a flag that may be true or false, we can encode it with the following specification
+    
+    .. code-block:: python
+
+        FeatureSpecification([MSEFeature("coordinates", 2), OneHotFeature("label", 5), BinaryFeature("flag", 1)])
+
+    (the names given as ``string`` can be chosen depending on what the feature represents)
+    """ 
     features: list[FeatureType]
 
     @property
