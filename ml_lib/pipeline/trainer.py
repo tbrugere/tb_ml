@@ -21,7 +21,7 @@ from ..register import Loader
 from .registers import loss_register, training_hook_register
 
 class Training_parameters(BaseModel):
-    n_epochs: int
+    n_epochs: int = 1
     optimizer: str = "Adam"
     optimizer_arguments: dict =  Field(default_factory=dict)
     lr_scheduler: str|None = None
