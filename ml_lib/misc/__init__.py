@@ -174,4 +174,12 @@ def human_readable(num: int|float, suffix="", precision=2):
 
     return f"{'-' if isneg else ''}{num:.{precision}f}{suff}{suffix}"
 
+def caller_name(x):
+    if hasattr(x, "get_model_type"):
+        return x.get_model_type()
+    if hasattr(x, "__name__"):
+        return x.__name__
+    if hasattr(x, "__class__"):
+        return x.__class__.__name__
+    return str(x)
 
