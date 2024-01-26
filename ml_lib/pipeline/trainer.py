@@ -137,8 +137,8 @@ class Trainer():
 
 
         ################ Record stuff in environment
-        if loss is not None:
-            self.global_env.record("loss_fun", loss)
+        if training_parameters.loss is not None:
+            self.global_env.record("loss_fun", training_parameters.loss)
         self.global_env.record_dict(dict(
             model=model,
             total_iter = self.total_iter,
@@ -183,10 +183,10 @@ class Trainer():
         match batch:
             case dict():
                 self.iter_env.record_dict(batch)
-            case batch if hasattr(batch, "_asdict"):
-                self.iter_env.record_dict(batch._asdict())
             case batch if hasattr(batch, "asdict"):
-                self.iter_env.record_dict(batch.asdict())
+                self.iter_env.record_dict(batch.asdict())#type: ignore
+            case batch if hasattr(batch, "_asdict"):
+                self.iter_env.record_dict(batch._asdict())#type: ignore
             case (x, gt):
                 self.iter_env.record("x", x)
                 self.iter_env.record("gt", gt)
@@ -280,7 +280,7 @@ class Trainer():
     def set_database(self, database_session: "DBSession", experiment: "DBExperiment", resume_from: "int|DBTraining_run|None",):
         from ..experiment_tracking import Training_run as DBTraining_run
         match resume_from:
-            case DBTraining_run(database_object):
+            case DBTraining_run(database_object=database_object):
                 self.id = database_object.id
                 self.database_object = resume_from
             case int(id):
