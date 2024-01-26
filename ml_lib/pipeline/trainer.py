@@ -80,7 +80,7 @@ class Trainer():
                  epoch_hooks: list[TrainingHook] = [],
                  end_hooks: list[TrainingHook] = [],
                  environment_variables: dict = {}, 
-                 database: "DBSession"|None = None, 
+                 database: "DBSession|None" = None, 
                  db_experiment: "DBExperiment|int|None" = None, 
                  resume_from: "int|DBTraining_run|None" = None, 
                  ):
