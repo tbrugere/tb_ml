@@ -230,15 +230,15 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin,
         provided = set(hyperparameters.keys())
         model_name = self.get_model_type()
         match (required-provided, provided-required):
-            case None, None:
+            case [], []:
                 pass
-            case _, None if allow_missing:
+            case _, [] if allow_missing:
                 pass
-            case missing, None:
+            case missing, []:
                 raise ValueError(f"Missing hyperparameters for {model_name} : {missing}")
-            case None, unknown:
+            case [], unknown:
                 raise ValueError(f"Unknown hyperparameters for {model_name}: {unknown}")
-            case _, _:
+            case [], []:
                 raise ValueError(f"Wrong hyperparameters for {model_name}: \n"
                                  f"expected: {required}\n"
                                  f"provided (including defaults: {provided})\n")
