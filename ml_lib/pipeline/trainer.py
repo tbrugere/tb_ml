@@ -27,6 +27,7 @@ class Training_parameters(BaseModel):
     lr_scheduler: str|None = None
     loss: dict|None = None # to be gotten from a loss register
 
+    batch_size: int = 10
     fake_batch_size: int = 1
 
     clip_grad_norm: float|None = 1.
