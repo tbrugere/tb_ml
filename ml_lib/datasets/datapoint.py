@@ -10,8 +10,8 @@ class Datapoint():
     def asdict(self):
         raise NotImplementedError
 
-    def to(self, device):
-        return self.__class__(**{name: value.to(device) 
+    def to(self, device, **kwargs):
+        return self.__class__(**{name: value.to(device, **kwargs) 
                                  for name, value in self.asdict().items()})
 
     @classmethod
