@@ -5,10 +5,14 @@ class Datapoint():
     """TODO"""
 
     def get_feature(self, name):
-        raise NotImplementedError
+        return getattr(self, name)
 
     def asdict(self):
         raise NotImplementedError
+
+    def to(self, device):
+        return self.__class__(**{name: value.to(device) 
+                                 for name, value in self.asdict().items()})
 
     @classmethod
     def collate(cls, datapoints: list[Self]):
