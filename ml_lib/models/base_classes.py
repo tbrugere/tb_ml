@@ -21,6 +21,7 @@ from ..environment import HasEnvironmentMixin
 from ..misc import human_readable
 
 Parameters = ParamSpec("Parameters")
+LossParameters = ParamSpec("LossParameters")
 ReturnType = TypeVar("ReturnType")
 T = TypeVar("T")
 IS_HYPERPARAM = "hyperparameter"
@@ -73,19 +74,26 @@ class ModelMeta(type):
     #     @ft.wraps(__init__)
     #     def wrapped(self, *args, **kwargs):
 
-class HasLossMixin:
+class HasLossMixin(Generic[LossParameters]):
     """
     Mixin for models that have a loss function.
     """
-    def compute_loss(self, *args, **loss_params) -> torch.Tensor:
+
+    @staticmethod 
+    def no_loss_error(*args: LossParameters.args, **loss_params: LossParameters.kwargs) -> torch.Tensor:
         """Procedure used at training time to compute the loss"""
         del args
         del loss_params
         raise NotImplementedError("Loss function should be defined")
+    
+    """Procedure used at training time to compute the loss"""
+    compute_loss: Callable[LossParameters, torch.Tensor] = no_loss_error
+
+
 
 # @dataclass_transform(kw_only_default=True, field_specifiers=(Hyperparameter[Any],))
-class Model(nn.Module, HasEnvironmentMixin, HasLossMixin, 
-            Generic[Parameters, ReturnType], 
+class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters], 
+            Generic[Parameters, ReturnType, LossParameters], 
             metaclass=ModelMeta):
     """
     Base class for this library’s models.
@@ -135,6 +143,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin,
 
     Basically tell the typechecker that forward and __call__ have the same 
     signature.
+    TODO create a Layer class and set those on that class. They don't make that much sense on the model class, since I often don't even define the forward method
     """
 
     forward: Callable[Parameters, ReturnType]
@@ -180,7 +189,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin,
         if isinstance(checkpoint, bytes):
             checkpoint = BytesIO(checkpoint)
         if not isinstance(checkpoint, dict):
-            checkpoint = torch.load(checkpoint)
+            checkpoint = torch.load(checkpoint, map_location=self.device)
         assert isinstance(checkpoint, dict)
         self.load_state_dict(checkpoint["model_state_dict"])
 
