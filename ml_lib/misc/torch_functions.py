@@ -8,7 +8,7 @@ from torch import nn
 # Pytorch stuff
 #-----------------------------------------------------------
 
-def freeze_model(,,: nn.Module):
+def freeze_model(m: nn.Module):
     for param in m.parameters():
         param.requires_grad = False
 
