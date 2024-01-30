@@ -339,7 +339,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         """returns True if the model has a `do_pretraining` function
         This function will be called at the start of the training if available
         """
-        return hasattr(self, "do_pretraining")
+        return self.do_pretraining is not None
 
     def has_training_function(self):
         """returns True if the model has a `do_training` function
@@ -352,7 +352,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         This function will be called instead of the loss to train the model if available 
         (and `has_training_function` is False)
         """
-        return hasattr(self, "do_epoch")
+        return self.do_epoch is not None
 
     @property
     def is_supervised(self) -> bool:
@@ -360,7 +360,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
 
     @property
     def is_generative(self) -> bool:
-        return self.generate is not None
+        return self.sample is not None
 
     """
     Misc
