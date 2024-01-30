@@ -2,12 +2,13 @@ from typing import Sequence
 
 import itertools as it
 
+import torch
 from torch import nn
 #-----------------------------------------------------------
 # Pytorch stuff
 #-----------------------------------------------------------
 
-def freeze_model(m: nn.Module):
+def freeze_model(,,: nn.Module):
     for param in m.parameters():
         param.requires_grad = False
 
@@ -25,3 +26,6 @@ def broadcastable(*shapes: Sequence[int]):
         if not all_equal(*not1):
             return False
     return True
+
+def get_default_device():
+    return torch.Tensor().device

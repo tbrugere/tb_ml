@@ -27,8 +27,6 @@ T = TypeVar("T")
 IS_HYPERPARAM = "hyperparameter"
 Hyperparameter = Annotated[T, IS_HYPERPARAM]
 
-def _get_default_device():
-    return torch.Tensor().device
 
 class ModelMeta(type):
     """
