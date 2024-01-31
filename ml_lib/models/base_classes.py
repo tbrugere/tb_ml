@@ -1,5 +1,6 @@
 from typing import (Callable, Optional, TypeVar, Annotated, get_type_hints, 
                     Final, Literal, overload, TYPE_CHECKING,
+                    TypeAlias, 
                     Any, ParamSpec, Generic)
 # dataclass_transform <-- wait for python3.12
 if TYPE_CHECKING:
@@ -25,7 +26,9 @@ LossParameters = ParamSpec("LossParameters")
 ReturnType = TypeVar("ReturnType")
 T = TypeVar("T")
 IS_HYPERPARAM = "hyperparameter"
+DONT_CHECK = "dontcheck"
 Hyperparameter = Annotated[T, IS_HYPERPARAM]
+DontCheck = Annotated[T, DONT_CHECK]
 
 
 class ModelMeta(type):
@@ -50,9 +53,30 @@ class ModelMeta(type):
         @ft.wraps(f)
         def wrapped(self, *args, **kwargs):
             device = self.device
+            ModelMeta.check_argument_devices(args, kwargs, model=self, function=f)
             with device:
                 return f(self, *args, **kwargs)
         return wrapped
+
+    @staticmethod
+    def check_argument_devices(args, kwargs, * , model, function):
+        """Check that the arguments passed to a model functions are on the 
+        model's device"""
+        if not __debug__:
+            return
+        sig = signature(function)
+        params = sig.parameters
+        bound_args = sig.bind_partial(*args, **kwargs)
+        for arg_name, value in bound_args.arguments.items():
+            param = params[arg_name]
+            if not hasattr(value, "device"):
+                continue
+            if hasattr(param.annotation, "__metadata__") and DONT_CHECK in param.annotation.metadata:
+                continue
+            if value.device == model.device:
+                continue
+            raise ValueError(f"passed parameter {arg_name} on device {value.device}, but the model {model.get_model_type()} is on device {model.device}. If this is a false positive, annotate the argument with DontCheck")
+
 
     @staticmethod
     def validate(model_class):
