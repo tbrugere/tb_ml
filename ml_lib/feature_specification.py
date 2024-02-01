@@ -2,6 +2,7 @@ from typing import Callable
 from dataclasses import dataclass, field as dataclass_field
 
 import torch
+from torch import Tensor
 import torch.nn.functional as F
 
 from .misc import all_equal
@@ -27,11 +28,11 @@ class FeatureType():
             return getattr(x, self.name)
         raise ValueError(f"Couldn't find how to get data {self.name} out of object {x}")
 
-    def compute_loss(self, input, target, reduce = True):
+    def compute_loss(self, input, target, reduce = True) -> Tensor:
         """Always takes an unnormalized logit for input, 
         (ie the direct output of a MLP for ex, not the softmax or the log softmax)
         """
-        del input, target
+        del input, target, reduce
         raise NotImplementedError
 
 
@@ -46,14 +47,14 @@ class FeatureType():
 
 
 class MSEFeature(FeatureType):
-    def compute_loss(self, input, target, reduce=True):
+    def compute_loss(self, input, target, reduce=True) -> Tensor:
         loss = (input - target).square()
         if reduce: loss = loss.mean()
         else: loss = loss.mean(dim=-1)
         return loss
 
 class OneHotFeature(FeatureType):
-    def compute_loss(self, input, target, reduce=True):
+    def compute_loss(self, input, target, reduce=True) -> Tensor:
         return F.cross_entropy(input=input, target=target, 
                                reduction="mean" if reduce else "none")
 
@@ -63,7 +64,7 @@ class OneHotFeature(FeatureType):
         return F.one_hot(input, num_classes=self.dim)
 
 class BinaryFeature(FeatureType):
-    def compute_loss(self, input, target, reduce=True):
+    def compute_loss(self, input, target, reduce=True) -> Tensor:
         return F.binary_cross_entropy_with_logits(input=input, target=target,
                                 reduction = "mean" if reduce else "none")
 
@@ -92,7 +93,7 @@ class FeatureSpecification():
     def dim(self):
         return sum(feature.dim for feature in self.features)
 
-    def compute_loss(self, input, target, reduce=True):
+    def compute_loss(self, input, target, reduce=True) -> Tensor:
         *batch_input, n_features = input.shape
         *batch_target, n_features_ = target.shape
         assert all_equal(n_features, n_features_, self.dim), f"Invalid shapes {input.shape} {target.shape}, needed {self.dim} features"
@@ -102,8 +103,12 @@ class FeatureSpecification():
         inputs = input.split(dims, dim=-1)
         targets = target.split(dims, dim=-1)
 
-        return sum(feature.loss_coef * feature.compute_loss(input, target, reduce=reduce) 
-                   for feature, input, target in zip(self.features, inputs, targets))
+        return sum(
+                (feature.loss_coef * 
+                feature.compute_loss(input, target, reduce=reduce) 
+                for feature, input, target in zip(self.features, inputs, targets)),
+                start=torch.tensor(0., device=input.device, dtype=input.dtype)
+                )
 
     def cut_up(self, input, decode=False):
         *batch, n_features = input.shape
