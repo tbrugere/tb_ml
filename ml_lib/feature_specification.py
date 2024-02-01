@@ -11,7 +11,7 @@ from .misc.torch_functions import broadcastable
 class FeatureType():
     name: str
     dim: int
-    extract: Callable[..., torch.Tensor]|None = None
+    extract: Callable[..., torch.Tensor]|None = dataclass_field(default=None, repr=False)
     loss_coef: float = 1.
     """Extracts the feature from the input, returns a tensor of shape (batch, dim)"""""
 
@@ -112,6 +112,9 @@ class FeatureSpecification():
         inputs = input.split(dims, dim=-1)
         if decode: return {feature.name: feature.decode(input) for feature, input in zip(self.features, inputs)}
         return {feature.name: input for feature, input in zip(self.features, inputs)}
+
+    def decode(self, input):
+        return self.cut_up(input, decode=True)
 
     def get_features(self, x):
         return torch.cat([feature.get_features(x) for feature in self.features], dim=-1)
