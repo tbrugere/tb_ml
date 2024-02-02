@@ -30,7 +30,7 @@ class DictDatapoint():
         return self.data[name]
 
     def asdict(self):                                                              
-        return return self.data
+        return self.data
 
     def to(self, device, **kwargs):
         return self.__class__(
