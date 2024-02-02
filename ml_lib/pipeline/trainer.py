@@ -10,11 +10,11 @@ if TYPE_CHECKING:
 
 import torch
 from torch import nn, optim
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from ..models import load_model
 from ..models.base_classes import Model
-from ..datasets import load_dataset
+from ..datasets import load_dataset, Dataset
 from .training_hooks import TrainingHook, OptimizerHook, LRSchedulerHook, DatabaseHook
 from ..environment import Environment, HierarchicEnvironment
 from ..register import Loader
@@ -27,7 +27,7 @@ class Training_parameters(BaseModel):
     lr_scheduler: str|None = None
     loss: dict|None = None # to be gotten from a loss register
 
-    batch_size: int = 10
+    batch_size: int|None = 10
     fake_batch_size: int = 1
 
     clip_grad_norm: float|None = 1.
@@ -96,7 +96,7 @@ class Trainer():
             case DataLoader():
                 pass
             case Dataset():
-                raise NotImplementedError
+                data = self.get_dataloader(data)
         if not isinstance(data, DataLoader):
             raise NotImplemented #TODO wrap it in a DataLoader
 
@@ -309,5 +309,15 @@ class Trainer():
             raise ValueError("cannot get database hook if session is None")
         return DatabaseHook(database_session=self.database_session, checkpoint_interval=checkpoint_interval, commit_interval=commit_interval, loss_name=loss_name, metrics=metrics)
 
+    def get_dataloader(self, dataset: Dataset):
+        return DataLoader(
+            dataset, 
+            batch_size=self.training_parameters.batch_size, 
+            collate_fn=dataset.collate, 
+            shuffle=True, # why would you disable this??
+            pin_memory= self.training_parameters.performance_tricks 
+                            and self.device.type == "cuda", 
+            num_workers=5 if self.training_parameters.performance_tricks else 0,
+            )
 
 

@@ -1,14 +1,17 @@
-from typing import TypeVar, Generic, Iterator
+from typing import TypeVar, Generic, Iterator, ClassVar, overload, NoReturn
 
 from dataclasses import dataclass
 # from typing import Callable, TypeAlias
 
 import torch.utils.data as torch_data
+from .datapoint import Datapoint
 
-Element = TypeVar("Element")
-Element2 = TypeVar("Element2")
+Element = TypeVar("Element", bound=Datapoint)
+Element2 = TypeVar("Element2", bound=Datapoint)
 
 class Dataset(torch_data.Dataset, Generic[Element]):
+    datatype: type[Element]
+
     def __getitem__(self, i) -> Element:
         raise NotImplementedError
 
@@ -19,8 +22,10 @@ class Dataset(torch_data.Dataset, Generic[Element]):
         for i in range(len(self)):
             yield self[i]
 
+    def collate(self, data: list[Element]):
+        return self.datatype.collate(data)
 
-@dataclass
+
 class Transform(Dataset[Element2], Generic[Element, Element2]):
     """
     Transformation of datasets.
@@ -34,17 +39,25 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
     Since this is a dataclass, the __init__() will call __post_init__(), so subclasses could
     implement that
     """
-    inner: Dataset[Element]
+    _inner: Dataset[Element]|None = None
 
-
-    def __post_init__(self):
-        self._initialize()
+    def __init__(self):
+        self._inner = None
 
     def _initialize(self):
         pass
 
     def __len__(self):
-        return len(self.inner)#type: ignore
+        return len(self._inner)#type: ignore
+
+    def __call__(self, dataset):
+        self._inner = dataset
+
+    @property
+    def inner(self) -> Dataset[Element]:
+        if self.inner is None:
+            raise ValueError(f"Transform {self} needs to be applied to a dataset before using it")
+        return self.inner
 
 # class IterableTransform(Transform, IterableDataset):
 #     pass

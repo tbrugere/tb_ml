@@ -12,52 +12,64 @@ from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from dataclasses import dataclass, field
 import itertools as it
+from warnings import deprecated
 
 import torch
 from torch import Tensor
 
 from .base_classes import Transform, Dataset, Element, Element2
 from .registration import transform_register
+from .datapoint import Datapoint, DictDatapoint
 
 NamedTupleElement = TypeVar("NamedTupleElement", bound=NamedTuple)
 TensorOrNamedTupleElement = TypeVar("TensorOrNamedTupleElement", bound=Union[Tensor, NamedTuple])
 
+class SameTypeTransform(Transform[Element, Element]):
+    @property
+    def datatype(self) -> type[Element]:
+        return self.inner.datatype
+
 @transform_register
-class CacheTransform(Transform[Element, Element]):
+class CacheTransform(SameTypeTransform[Element]):
     """
     Transforms an iterable dataset, 
     into an indexable (subscriptable) dataset
     by caching n values
     """
 
-    inner: Dataset[Element]
-    cached_data: list[Element]
+    n: Optional[int] = None
+    cached_data: list[Element]|None = None
 
-    def __init__(self, inner: Dataset[Element], n: Optional[int]=None):
-        self.inner = inner
-        inner_iter: Iterator[Element] = iter(inner)
-        if n is not None:
-            inner_iter = it.islice(inner_iter, n)
+    def __init__(self, n: Optional[int]=None):
+        self.n = n
+
+    def _initialize(self):
+        assert self.inner is not None
+        inner_iter: Iterator[Element] = iter(self.inner)
+        if self.n is not None:
+            inner_iter = it.islice(inner_iter, self.n)
         
         self.cached_data = list(inner_iter)
 
     def __getitem__(self, i):
+        assert self.cached_data is not None
         return self.cached_data[i]
 
     def __len__(self):
+        assert self.cached_data is not None
         return len(self.cached_data)
 
 
+
+
 @transform_register
-class FilterTransform(Transform[Element, Element]):
+class FilterTransform(SameTypeTransform[Element]):
     """Transforms a dataset by filtering out some elements
 
     """
-    inner: Dataset[Element]
     f: Callable[[Element,], bool]
 
-    def __init__(self, inner: Dataset[Element], f: Callable[[Element,], bool]):
-        self.inner = inner
+    def __init__(self, f: Callable[[Element,], bool]):
         self.f = f
 
     def __iter__(self):
@@ -70,11 +82,10 @@ class FilterTransform(Transform[Element, Element]):
 @dataclass
 class FunctionTransform(Transform[Element, Element2]):
     """Simple transform that applies a function to every element of the dataset
-
     """
 
     f: Callable[[Element,], Element2]
-    inner: Dataset[Element]
+    datatype: type[Element2]
 
     def __getitem__(self, i) -> Element2:
         return self.f(self.inner[i])
@@ -83,16 +94,18 @@ class FunctionTransform(Transform[Element, Element2]):
         for elem in self.inner:
             yield self.f(elem)
 
+#TODO type this correctly (need to create a return type 
+#that inherits from datapoint )
+# for example a "DictDatapoint" that is just a wrapper around a dict
 @transform_register
-class MultipleFunctionTransform(FunctionTransform[Element, "Self.datapoint_type"]):
+class MultipleFunctionTransform(FunctionTransform[Element, DictDatapoint]):
 
     functions: dict[str, tuple[Callable, str|int]]
-    datapoint_type = field(init=False)
+    datatype= DictDatapoint
 
-    def __init__(self, inner, functions):
-        self.inner = inner
+    def __init__(self, functions):
         self.functions = functions
-        self.datapoint_type = namedtuple("datapoint", self.functions.keys())
+        self.datatype = DictDatapoint
 
     def f(self, inner_value: NamedTupleElement) -> NamedTupleElement:
         result = {}
@@ -107,11 +120,12 @@ class MultipleFunctionTransform(FunctionTransform[Element, "Self.datapoint_type"
                 case _:
                     assert False, f"incompatible {arg=} and {inner_value=}"
             result[elem_name] = mapped_elem
-        return self.datapoint_type(**result)
+        return self.datatype(result)
 
 
+# Same.
 @transform_register
-class RenameTransform(FunctionTransform[Element, NamedTuple]):
+class RenameTransform(FunctionTransform[Element, DictDatapoint]):
     """Rename the outputs of a dataset
 
     Converts a dataset whose elements are tuples, dicts, or namedtuples to
@@ -148,16 +162,14 @@ class RenameTransform(FunctionTransform[Element, NamedTuple]):
         (in which case __getattr__ is used)
 
      """
-    inner: Dataset[Element]
     name_map: dict[int | str, str]
-    datapoint_type: type[NamedTuple] = field(init=False)
+    datatype: type[NamedTuple] = DictDatapoint
 
-    def __init__(self, inner, name_map):
-        self.inner = inner
+    def __init__(self,  name_map):
         self.name_map = name_map
         self.datapoint_type= namedtuple("datapoint", self.name_map.values())
 
-    def f(self, inner_value: Element) -> "Self.datapoint_type":
+    def f(self, inner_value: Element) -> DictDatapoint:
         d = {}
         for key, field_name in self.name_map.items():
             match key:
@@ -171,10 +183,11 @@ class RenameTransform(FunctionTransform[Element, NamedTuple]):
                     d[field_name] = getattr(inner_value, key)
                 case _:
                     assert False, f"incompatible {key=} and {inner_value=}"
-        return self.datapoint_type(**d)
+        return self.datatype(d)
 
-
-@transform_register
+# DONT USE
+@deprecated
+# @transform_register
 class ToGPUTransform(FunctionTransform[TensorOrNamedTupleElement, TensorOrNamedTupleElement]):
     """Transforms a dataset to a dataset that sends the elements to the GPU
 
@@ -206,9 +219,7 @@ class TensorUniqueTransform(Transform[torch.Tensor, torch.Tensor]):
     assumes all elements in the dataset are torch tensors
     and that the dataset is sliceable (ie you can get the full tensor by using Dataset[:])
     """
-    inner: Dataset[torch.Tensor]
-
-    data: torch.Tensor
+    data: torch.Tensor = None
 
     def _initialize(self):
         self.data = torch.unique(self.inner[:], dim=0)
