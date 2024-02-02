@@ -1,5 +1,6 @@
 from typing import Self
 from torch.utils.data import default_collate
+import dataclasses
 
 class Datapoint():
 
