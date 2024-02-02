@@ -39,4 +39,4 @@ class DictDatapoint():
 
     @classmethod
     def collate(cls, datapoints: list[Self]):
-        return cls(default_collate(d.data for d in datapoints)) # I think default_collate accepts dicts
+        return cls(default_collate([d.data for d in datapoints])) # I think default_collate accepts dicts
