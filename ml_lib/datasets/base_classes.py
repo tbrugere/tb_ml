@@ -61,7 +61,7 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
     def inner(self) -> Dataset[Element]:
         if self._inner is None:
             raise ValueError(f"Transform {self} needs to be applied to a dataset before using it")
-        return self.inner
+        return self._inner
 
 # class IterableTransform(Transform, IterableDataset):
 #     pass
