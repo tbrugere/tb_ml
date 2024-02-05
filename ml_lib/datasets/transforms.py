@@ -12,11 +12,11 @@ from collections import namedtuple
 from collections.abc import Sequence, Mapping
 from dataclasses import dataclass, field
 import itertools as it
-from warnings import deprecated
 
 import torch
 from torch import Tensor
 
+from ml_lib.misc.basic import deprecated
 from .base_classes import Transform, Dataset, Element, Element2
 from .registration import transform_register
 from .datapoint import Datapoint, DictDatapoint
