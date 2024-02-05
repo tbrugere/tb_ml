@@ -52,6 +52,7 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
 
     def __call__(self, dataset):
         self._inner = dataset
+        return self
 
     @property
     def inner(self) -> Dataset[Element]:
