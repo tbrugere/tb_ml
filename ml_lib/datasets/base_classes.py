@@ -51,6 +51,9 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
         return len(self._inner)#type: ignore
 
     def __call__(self, dataset):
+        if self._inner is not None:
+            #TODO copy
+            raise ValueError("Already applied transform cannot be reapplied for now")
         self._inner = dataset
         return self
 
