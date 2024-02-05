@@ -63,9 +63,10 @@ def num_parameters_tree(model: torch.nn.Module, depth=3,
         assert depth > 0, "depth cannot be negative"
         module_strings = []
         for name, module in model.named_children():
-            module_string, module_size = num_parameters_tree(module, depth=depth-1, model_name=name, 
-                                                             human_readable=human_readable, return_total=True, 
-                                                             indent_by=indent_by, )
+            module_string, module_size = num_parameters_tree(
+                    module, depth=depth-1, model_name=name, 
+                    human_readable=human_readable, return_total=True, 
+                    indent_by=indent_by, skip_empty=skip_empty)
             total += module_size
             if module_size == 0 and skip_empty:
                 continue
