@@ -56,7 +56,7 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
 
     @property
     def inner(self) -> Dataset[Element]:
-        if self.inner is None:
+        if self._inner is None:
             raise ValueError(f"Transform {self} needs to be applied to a dataset before using it")
         return self.inner
 
