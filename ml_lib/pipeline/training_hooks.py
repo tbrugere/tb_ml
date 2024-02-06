@@ -186,7 +186,12 @@ class TensorboardHook(TrainingHook):
         from torch.utils import tensorboard
         super().__init__(interval)
         if tensorboard_dir is None:
-            tensorboard_path = find_file([Path("tensorboard"), Path("../tensorboard"), Path(f"{os.environ['HOME']}/tensorboard")])
+            if "TENSORBOARD" in os.environ: 
+                tensorboard_path = Path(os.environ["TENSORBOARD"])
+            else: 
+                tensorboard_path = find_file([
+                    Path("tensorboard"), Path("../tensorboard"), 
+                    Path(f"{os.environ['HOME']}/tensorboard")])
             if tensorboard_path is None: tensorboard_path = Path("tensorboard")
         else : tensorboard_path = Path(tensorboard_dir)
         tensorboard_path = tensorboard_path / run_name
