@@ -27,20 +27,32 @@ from ..register import Register
 class TrainingHook(HasEnvironmentMixin):
 
     interval: int|None = 1
+    absolutely_necessary: bool = True 
+    """If set to False, exceptions raised in the hook will be ignored, 
+    and printed as warnings instead. If True, they will crash the training"""
     # env: Environment = field(default_factory=Environment)
     __post_init__ = HasEnvironmentMixin.__init__
 
     def __call__(self):
         if self.interval is None: 
-            self.env.environment.run_function(self.hook) #this is for end hooks (only run once)
+            self.env.environment.run_function(self._protected_hook) #this is for end hooks (only run once)
         n_iteration = self.env.iteration
 
         new_values = None
         if n_iteration % self.interval == 0:
-            self.env.environment.run_function(self.hook)
+            self.env.environment.run_function(self._protected_hook)
 
         if new_values is None:
             new_values = {}
+
+    def _protected_hook(self):
+        if self.absolutely_necessary: 
+            self.hook()
+            return
+        try: 
+            self.hook()
+        except Exception as e: 
+            logger.warn(f"Training hook {self} raised an exception {e}")
 
     def hook(self) -> Optional[dict]:
         raise NotImplementedError
@@ -59,13 +71,14 @@ class TrainingHook(HasEnvironmentMixin):
 register = Register(TrainingHook)
 
 class EndHook(TrainingHook):
-    def __init__(self):
-        super().__init__(interval=None)
+    """End Hooks are by default not absolutely_necessary. """
+    def __init__(self, absolutely_necessary=False):
+        super().__init__(interval=None, absolutely_necessary=absolutely_necessary)
     def __call__(self):
         self.env.environment.run_function(self.hook) #no checking stuff because this is run once
 
 class EndAndStepHook(EndHook):
-    def __init__(self, interval=1):
+    def __init__(self, interval=1, absolutely_necessary=True):
         TrainingHook.__init__(self, interval=interval)
     def __call__(self):
         if self.env.get("training_finished"):
@@ -76,9 +89,10 @@ class EndAndStepHook(EndHook):
 @register
 class LoggerHook(TrainingHook):
     variables: list[tuple[Scope, str]]
+    absolutely_necessary = False
 
     def __init__(self, variables: list[str] = ["loss"], interval=1):
-        super().__init__(interval)
+        super().__init__(interval, absolutely_necessary=False)
         self.variables = [scopevar_of_str(v) for v in variables]
 
     def hook(self):
@@ -98,7 +112,7 @@ class CurveHook(TrainingHook):
     values: list
 
     def __init__(self, interval:int =1, variable="loss"):
-        super().__init__(interval)
+        super().__init__(interval, absolutely_necessary=False)
         self.scope, self.variable = scopevar_of_str(variable)
         self.values = []
         import matplotlib.pyplot as plt
@@ -152,9 +166,10 @@ class KLAnnealingHook(TrainingHook):
 class TqdmHook(TrainingHook):
     progressbar: Optional["tqdm"] = None
     last_known_epoch: int = 0
+    absolutely_necessary = False
 
     def __init__(self, interval:int =1, tqdm=None):
-        super().__init__(interval)
+        super().__init__(interval, absolutely_necessary=False)
         if tqdm is None:
             from tqdm.auto import tqdm
         self.tqdm = tqdm
@@ -184,7 +199,7 @@ class TensorboardHook(TrainingHook):
     
     def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  log_vars = ["loss"]):
         from torch.utils import tensorboard
-        super().__init__(interval)
+        super().__init__(interval, absolutely_necessary=False)
         if tensorboard_dir is None:
             if "TENSORBOARD" in os.environ: 
                 tensorboard_path = Path(os.environ["TENSORBOARD"])
@@ -215,7 +230,7 @@ class OptimizerHook(TrainingHook):
     automagically added.
     """
     def __init__(self, optimizer: Optimizer, clip_gradient: Optional[float] =None, interval: int=1):
-        super().__init__(interval)
+        super().__init__(interval, absolutely_necessary=True)
         self.optimizer = optimizer
         self.clip_gradient = clip_gradient
 
@@ -252,7 +267,7 @@ class DatabaseHook(EndAndStepHook):
 
     def __init__(self, interval: int=1, *, database_session: "Session", checkpoint_interval: int = 100, commit_interval: int = 100, training_run_id: int|None=None, 
                  loss_name="loss", metrics=[]):
-        super().__init__(interval)
+        super().__init__(interval, absolutely_necessary=False)
         assert checkpoint_interval%interval == 0
         assert commit_interval % interval == 0
         self.database_session = database_session
