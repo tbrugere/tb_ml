@@ -52,7 +52,7 @@ class TrainingHook(HasEnvironmentMixin):
         try: 
             self.hook()
         except Exception as e: 
-            logger.warn(f"Training hook {self} raised an exception {e}")
+            logger.warning(f"Training hook {self} raised an exception {e}")
 
     def hook(self) -> Optional[dict]:
         raise NotImplementedError
