@@ -190,6 +190,13 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         return human_readable(self.num_parameters(trainable_only), 
                               precision=precision)
 
+    def num_parameters_tree(self, depth=3, human_readable: bool=True, skip_empty=False):
+        from ml_lib.misc.torch_functions import num_parameters_tree
+        return num_parameters_tree(self, depth=depth, 
+                                   human_readable=human_readable, 
+                                   skip_empty=True)
+
+
     """
     Creating, loading and saving
     ----------------------------
