@@ -176,12 +176,14 @@ class TqdmHook(TrainingHook):
         self.progressbar = None
 
     def hook(self):
+        model = self.env.model
         if self.progressbar is None:
             self.reset_progressbar()
         assert self.progressbar is not None
         if self.env.epoch != self.last_known_epoch:
             self.last_known_epoch = self.env.epoch
-            self.progressbar.set_description(f"Epoch {self.env.epoch}")
+            model_name = model.model_name or model.get_model_type()
+            self.progressbar.set_description(f"Model {model_name} - Epoch {self.env.epoch}")
         self.progressbar.update()
 
     def reset_progressbar(self, initial: int = 0):
