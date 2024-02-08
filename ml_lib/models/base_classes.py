@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from ..experiment_tracking import Model as Database_Model
 
 import functools as ft
+from copy import deepcopy
 import itertools as it
 from io import BytesIO, StringIO
 from logging import getLogger; log = getLogger(__name__)
@@ -288,7 +289,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     def fill_with_defaults(cls, partial_hyperparameters, allow_missing=False):
         for attr_name in cls.list_hyperparameters(return_types=False):
             if attr_name not in partial_hyperparameters and hasattr(cls, attr_name):
-                partial_hyperparameters[attr_name] = getattr(cls, attr_name)
+                partial_hyperparameters[attr_name] = deepcopy(getattr(cls, attr_name))
             elif attr_name not in partial_hyperparameters and not allow_missing:
                 raise ValueError(f"Missing hyperparameter {attr_name}, and no default value is set")
         return partial_hyperparameters
