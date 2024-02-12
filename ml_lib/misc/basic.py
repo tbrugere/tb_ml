@@ -118,6 +118,9 @@ def caller_name(x):
 #     ...
 
 def eventually_tuple(*arguments):
+    """If given one argument, returns that argument
+    Otherwise returns that
+    """
     if len(arguments) == 1:
         arg, = arguments
         return arg

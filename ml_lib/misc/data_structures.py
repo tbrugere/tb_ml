@@ -1,3 +1,74 @@
+from typing import Generic, TypeVar, Self, Callable, Iterator
+
+T = TypeVar("T")
+
+class SingletonMeta(type):
+    """Metaclass for singletons
+    stolen from https://stackoverflow.com/a/6798042/4948719 
+    """
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class NotSpecified(metaclass=SingletonMeta):
+    """Used to specify that something is not specified"""
+
+class Maybe(Generic[T]):
+    """Proper optional type
+
+    *m will eventually be the contained value
+
+    Note that nicely, this can contain ``None``
+    """
+
+    is_empty: bool
+    _value: T|None
+
+    def __init__(self, value: T|NotSpecified=NotSpecified()):
+        if value is NotSpecified():
+            self.is_empty=True
+            self._value = None
+            return
+        else:
+            self.is_empty = False
+            self._value = value #type:ignore
+
+
+    @property
+    def value(self) -> T:
+        return self.get()
+
+    @value.setter
+    def value(self, value: T):
+        self.is_empty = False
+        self._value = value
+
+
+    def get(self, default=NotSpecified()) -> T:
+        if self.is_empty == False:
+            assert self._value is not None
+            return self._value
+        if isinstance(default, NotSpecified):
+            raise ValueError("used get with no default on empty Maybe object")
+        return default
+
+    def map(self, f: Callable[[T], T]) -> Self:
+        if self.is_empty:
+            return self
+        return self.__class__(f(self.value))
+
+    def bind(self,f: Callable[[T], Self] ) -> Self:
+        if self.is_empty:
+            return self
+        return f(self.value)
+
+    def __iter__(self) -> Iterator[T]:
+        if self.is_empty: return
+        yield self.value
+
 
 
 ############### dict functions
@@ -40,6 +111,7 @@ def unwrap_dict(d: dict, *keys):
     return [d[key] for key in keys]
 
 
+    
 
 ############### Union-Find
 
