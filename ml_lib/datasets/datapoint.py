@@ -38,6 +38,9 @@ class DictDatapoint(Datapoint):
                 {name: value.to(device, **kwargs) 
                 for name, value in self.asdict().items()})
 
+    def __getattr__(self, attr):
+        return self.get_feature(attr)
+
     @classmethod
     def collate(cls, datapoints: list[Self]):
         return cls(default_collate([d.data for d in datapoints])) # I think default_collate accepts dicts
