@@ -20,7 +20,7 @@ class Datapoint():
 
 
 
-class DictDatapoint():
+class DictDatapoint(Datapoint):
 
     data: dict
 
