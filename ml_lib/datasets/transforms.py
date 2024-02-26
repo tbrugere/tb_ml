@@ -41,6 +41,7 @@ class CacheTransform(SameTypeTransform[Element]):
     cached_data: list[Element]|None = None
 
     def __init__(self, n: Optional[int]=None):
+        assert isinstance(n, int|None)
         self.n = n
 
     def _initialize(self):
@@ -113,6 +114,8 @@ class MultipleFunctionTransform(FunctionTransform[Element, DictDatapoint]):
             match arg:
                 case "_":
                     mapped_elem = func(inner_value)
+                case _ if isinstance(inner_value, Datapoint):
+                    mapped_elem = func(inner_value.get_feature(arg))
                 case int() if isinstance(inner_value, Sequence):
                     mapped_elem = func(inner_value[arg])
                 case str():
@@ -163,18 +166,20 @@ class RenameTransform(FunctionTransform[Element, DictDatapoint]):
 
      """
     name_map: dict[int | str, str]
-    datatype: type[NamedTuple] = DictDatapoint
+    datatype: type[DictDatapoint] = DictDatapoint
 
     def __init__(self,  name_map):
         self.name_map = name_map
-        self.datapoint_type= namedtuple("datapoint", self.name_map.values())
+        self.datapoint_type= DictDatapoint
 
     def f(self, inner_value: Element) -> DictDatapoint:
         d = {}
-        for key, field_name in self.name_map.items():
+        for field_name, key in self.name_map.items():
             match key:
                 case "_":
                     d[field_name] = inner_value
+                case _ if isinstance(inner_value, Datapoint):
+                    d[field_name] = inner_value.get_feature(key)
                 case int() if isinstance(inner_value, Sequence):
                     d[field_name] = inner_value[key]
                 case str() if isinstance(inner_value, Mapping):
