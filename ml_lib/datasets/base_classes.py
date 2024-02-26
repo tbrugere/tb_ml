@@ -55,6 +55,7 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
             #TODO copy
             raise ValueError("Already applied transform cannot be reapplied for now")
         self._inner = dataset
+        self._initialize()
         return self
 
     @property
