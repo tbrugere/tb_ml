@@ -5,8 +5,8 @@ import torch
 from torch import Tensor
 import torch.nn.functional as F
 
-from .misc import all_equal
-from .misc.torch_functions import broadcastable
+from ml_lib.misc import all_equal
+from ml_lib.misc.torch_functions import broadcastable
 
 @dataclass
 class FeatureType():

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
     from sqlalchemy.orm import Session
-    from ..experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
+    from ml_lib.pipeline.experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
 
 
 from torch.optim import Optimizer
@@ -287,7 +287,7 @@ class DatabaseHook(EndAndStepHook):
 
 
     def hook(self):
-        from ..experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
+        from ml_lib.pipeline.experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
         step: int = self.env.iteration
         training_finished = self.env.get("training_finished") or False
         training_step: DBTraining_step = self.get_training_step(training_finished)
@@ -301,7 +301,7 @@ class DatabaseHook(EndAndStepHook):
         if dbtraining_run is None: raise ValueError("tried to create a database hook with no database object in the environment")
 
     def get_training_step(self, is_last):
-        from ..experiment_tracking import Training_step as DBTraining_step, Checkpoint as DBCheckpoint
+        from ml_lib.pipeline.experiment_tracking import Training_step as DBTraining_step, Checkpoint as DBCheckpoint
         from datetime import datetime
         step: int = self.env.iteration
         epoch: int = self.env.epoch

@@ -4,7 +4,7 @@ from typing import (Callable, Optional, TypeVar, Annotated, get_type_hints,
                     Any, ParamSpec, Generic)
 # dataclass_transform <-- wait for python3.12
 if TYPE_CHECKING:
-    from ..experiment_tracking import Model as Database_Model
+    from ml_lib.pipeline.experiment_tracking import Model as Database_Model
 
 import functools as ft
 from copy import deepcopy
@@ -299,11 +299,11 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         return hash(frozenset(self.get_hyperparameters().items()))
 
     def to_database_object(self):
-        from ..experiment_tracking import Model as Database_Model
+        from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         return Database_Model.from_model(self)
 
     def get_database_object(self, session: Session) -> Optional["Database_Model"]:
-        from ..experiment_tracking import Model as Database_Model
+        from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         if self.id is not None:
             return session.get(Database_Model, self.id)
         elif self.model_name is not None:
@@ -318,7 +318,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             self.model_name = database_object.name
 
     def save_to_database(self, session: Session, replace:bool = False) -> None:
-        from ..experiment_tracking import Model as Database_Model
+        from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         if self.id is not None:
             existing = session.get(Database_Model, self.id)
             database_object = self.to_database_object()

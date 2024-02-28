@@ -11,7 +11,7 @@ import glob
 import numpy as np
 
 from ..misc import auto_repr
-from ..experiment_tracking import Model as DatabaseModel, Checkpoint as DatabaseCheckpoint, Test as DatabaseTest
+from ml_lib.pipeline.experiment_tracking import Model as DatabaseModel, Checkpoint as DatabaseCheckpoint, Test as DatabaseTest
 
 @auto_repr("type", "path", "title")
 class Row:

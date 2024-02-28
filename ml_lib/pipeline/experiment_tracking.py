@@ -8,9 +8,9 @@ from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean
 from sqlalchemy.types import JSON, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
 
-from .models.base_classes import Model as Model_
-from .models import register as model_register
-from .misc import auto_repr
+from ml_lib.models.base_classes import Model as Model_
+from ml_lib.models import register as model_register
+from ml_lib.misc import auto_repr
 
 class Base(DeclarativeBase):
     pass

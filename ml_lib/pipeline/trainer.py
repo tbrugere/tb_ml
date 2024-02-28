@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from logging import getLogger; log = getLogger(__name__)
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as DBSession
-    from ..experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
+    from .experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
 
 import torch
 from torch import nn, optim
@@ -339,8 +339,8 @@ class Trainer():
         return LRSchedulerHook(scheduler)
 
     def set_database(self, database_session: "DBSession", experiment: "DBExperiment|int", resume_from: "int|DBTraining_run|None",):
-        from ..experiment_tracking import Training_run as DBTraining_run
-        from ..experiment_tracking import Experiment as DBExperiment
+        from .experiment_tracking import Training_run as DBTraining_run
+        from .experiment_tracking import Experiment as DBExperiment
         if isinstance(experiment, int):
             maybe_experiment: DBExperiment|None =database_session.get(DBExperiment, experiment)
             assert maybe_experiment is not None, "provided experiment doesn't exist"
@@ -364,7 +364,7 @@ class Trainer():
         self.global_env.record("database_object", self.database_object)
 
     def get_database_object(self, experiment: "DBExperiment", database_session: "DBSession"):
-        from ..experiment_tracking import Training_run as DBTraining_run
+        from .experiment_tracking import Training_run as DBTraining_run
         model_db = self.model.get_database_object(database_session)
         if model_db is None:
             raise ValueError("Model doesn't have an id or a name, couldn't register to database")
