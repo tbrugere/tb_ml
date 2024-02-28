@@ -45,6 +45,26 @@ class FeatureType():
     def get_features(self, input):
         return self.encode(self._extract(input))
 
+    def __eq__(self, other):
+        # don't check the "extract" function
+        if not self.__class__ == other.__class__:
+            return False
+        return self.name == other.name \
+                and self.dim == other.dim \
+                and self.loss_coef == other.loss_coef
+
+    def __getstate__(self):
+        return dict(
+                name=self.name, 
+                dim=self.dim,
+                loss_coef=self.loss_coef
+            )
+    def __setstate__(self, state):
+        self.name = state["name"]
+        self.dim = state["dim"]
+        self.loss_coef = state["loss_coef"]
+
+
 
 class MSEFeature(FeatureType):
     def compute_loss(self, input, target, reduce=True) -> Tensor:
