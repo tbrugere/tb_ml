@@ -91,7 +91,7 @@ class LoggerHook(TrainingHook):
     variables: list[tuple[Scope, str]]
     absolutely_necessary = False
 
-    def __init__(self, variables: list[str] = ["loss"], interval=1):
+    def __init__(self, variables: list[str] = ["iteration", "loss"], interval=1):
         super().__init__(interval, absolutely_necessary=False)
         self.variables = [scopevar_of_str(v) for v in variables]
 
@@ -199,7 +199,8 @@ class TqdmHook(TrainingHook):
 @register
 class TensorboardHook(TrainingHook):
     
-    def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  log_vars = ["loss"]):
+    def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  
+                 log_vars = ["loss"]):
         from torch.utils import tensorboard
         super().__init__(interval, absolutely_necessary=False)
         if tensorboard_dir is None:
@@ -219,7 +220,10 @@ class TensorboardHook(TrainingHook):
     def hook(self):
         step = self.env.iteration
         loss_dict= dict()
-        for scope, var in self.log_vars:
+        additional_log_vars = self.env.get("additional_log_vars") # additional variables registered as target for logging
+        # todo if needed, add an option to disable those
+        if additional_log_vars is None: additional_log_vars = []
+        for scope, var in self.log_vars + additional_log_vars:
             loss_dict[var] = self.env.get(var, scope)
         self.writer.add_scalars('loss', loss_dict, step)
 
@@ -284,11 +288,11 @@ class DatabaseHook(EndAndStepHook):
 
     def hook(self):
         from ..experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
-        step: int = self.env.step
+        step: int = self.env.iteration
         training_finished = self.env.get("training_finished") or False
         training_step: DBTraining_step = self.get_training_step(training_finished)
         self.database_session.add(training_step)
-        if (step + 1) % self.commit_interval == 0:
+        if training_finished or (step + 1) % self.commit_interval == 0 :
             self.database_session.commit()
 
     def setup(self):
@@ -299,8 +303,12 @@ class DatabaseHook(EndAndStepHook):
     def get_training_step(self, is_last):
         from ..experiment_tracking import Training_step as DBTraining_step, Checkpoint as DBCheckpoint
         from datetime import datetime
-        step: int = self.env.step
+        step: int = self.env.iteration
         epoch: int = self.env.epoch
+        if step is None:
+            assert is_last
+            step = self.env.total_iter - 1
+            epoch = self.env.n_epochs - 1
         training_run = self.env.get("training_run_db")
         if training_run is None:
             raise ValueError("Tried to use DatabaseHook without a training_run_db object in the environment")
@@ -327,7 +335,8 @@ class DatabaseHook(EndAndStepHook):
         if ((step + 1) % self.checkpoint_interval) == 0:
             model = self.env.model
             checkpoint = DBCheckpoint.from_model(
-                    model, is_last=is_last, step=training_step)
+                    model, is_last=is_last, step=training_step, 
+                    session=self.database_session)
             self.database_session.add(training_step)
             self.database_session.add(checkpoint)
 

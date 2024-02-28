@@ -32,12 +32,12 @@ experiment_tests = Table(
     Column("test_id", ForeignKey("tests.id"), primary_key=True),
 )
 
-experiment_training_runs = Table(
-    "experiment_training_runs",
-    Base.metadata,
-    Column("experiment_id", ForeignKey("experiments.id"), primary_key=True),
-    Column("training_run_id", ForeignKey("training_runs.id"), primary_key=True),
-)
+# experiment_training_runs = Table(
+#     "experiment_training_runs",
+#     Base.metadata,
+#     Column("experiment_id", ForeignKey("experiments.id"), primary_key=True),
+#     Column("training_run_id", ForeignKey("training_runs.id"), primary_key=True),
+# )
 
 # experiment_tests = Table(
 
@@ -111,20 +111,22 @@ class Checkpoint(Base):
 
     tests: Mapped[list["Test"]] = relationship('Test', back_populates='checkpoint')
 
-
-
-
-
     @classmethod
     def from_model(cls, 
                    model: Model_, 
                    step: Optional["Training_step"] = None, 
-                   is_last: bool = False):
+                   is_last: bool = False, 
+                   *, 
+                   session: Session):
+        assert session is not None
+        model_obj = model.get_database_object(session=session)
+        if model_obj is None:
+            raise ValueError("Couldn't infer database object for model, so couldn't checkpoint...")
         return cls(
-            model=model,
+            model=model_obj,
             step=step,
             is_last=is_last,
-            checkpoint=model.state_dict()
+            checkpoint=model.get_checkpoint()
         )
 
 class Training_run(Base):
@@ -137,7 +139,25 @@ class Training_run(Base):
     model: Mapped[Model] = relationship('Model', back_populates='training_runs')
     steps: Mapped[list["Training_step"]] = relationship('Training_step', back_populates='training_run')
 
-    experiments: Mapped[list["Experiment"]] = relationship('Experiment', secondary=experiment_training_runs)
+    experiment_id: Mapped[int] = mapped_column(Integer, ForeignKey('experiments.id'))
+    experiment: Mapped["Experiment"] = relationship('Experiment', back_populates="training_runs")
+
+    def last_checkpoint(self, max_step_n: int|None=None, session=None) -> Checkpoint|None:
+        if session is None:
+            session = Session.object_session(self)
+        assert session is not None
+        query = select(Checkpoint)\
+                .join(Checkpoint.step)\
+                .where(Training_step.training_run == self)
+        if max_step_n is not None:
+            query = query.where(Training_step.step <= max_step_n)
+        query = query.order_by(Training_step.step.desc()).limit(1)
+        result = session.execute(query).one_or_none()
+        match result:
+            case None: return None
+            case (Checkpoint() as c,): return c
+            case anything_else: raise ValueError(f"Unexpected query result {anything_else}")
+
 
 class Training_step(Base):
     __tablename__ = 'steps'
@@ -181,6 +201,6 @@ class Experiment(Base):
 
     models: Mapped[Model] = relationship('Model', secondary=experiment_models, back_populates='experiments')
     tests: Mapped[Test] = relationship('Test', secondary=experiment_tests, back_populates='experiments')
-    training_runs: Mapped[Training_run] = relationship('Training_run', 
-                                                       secondary='experiment_training_runs', 
-                                                       back_populates='experiments')
+    training_runs: Mapped[Training_run] = relationship('Training_run',) 
+                                                       # secondary='experiment_training_runs', 
+                                                       # back_populates='experiments')

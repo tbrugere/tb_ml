@@ -1,12 +1,12 @@
 from collections.abc import Sequence
 from collections import namedtuple
-from typing import Type, Any, Union, Optional, Callable, TYPE_CHECKING
+from typing import Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
 from pydantic import BaseModel, Field
 
-from logging import info
+from logging import getLogger; log = getLogger(__name__)
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as DBSession
-    from ..experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment
+    from ..experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
 
 import torch
 from torch import nn, optim
@@ -41,6 +41,9 @@ class Training_parameters(BaseModel):
     performance_tricks: bool = True
     """enables various optimizations. Set to false to help debugging"""
 
+    checkpoint_interval: int = 100
+    database_commit_interval: int = 100
+
 class Trainer():
 
 
@@ -73,6 +76,11 @@ class Trainer():
 
     database_session: "DBSession|None"
 
+    """Whether the next epoch should skip datapoints 
+    (and the number that should be skipped) .
+    Used when resuming from a checkpoint (to get to the same point)"""
+    skip_n_datapoints: int|None = None
+
     def __init__(self, model: Model, 
                  data: Union[Dataset, DataLoader, Sequence],
                  training_parameters: Training_parameters, 
@@ -84,6 +92,7 @@ class Trainer():
                  database: "DBSession|None" = None, 
                  db_experiment: "DBExperiment|int|None" = None, 
                  resume_from: "int|DBTraining_run|None" = None, 
+                 resume_step: "int|DBTraining_step|None" = None, 
                  ):
         #TODO: take a train and validation set, or do the separation in-house
 
@@ -99,6 +108,12 @@ class Trainer():
                 data = self.get_dataloader(data)
         if not isinstance(data, DataLoader):
             raise NotImplemented #TODO wrap it in a DataLoader
+
+        ################ Hooks that the trainer itself sets
+        # (eg. the optimizer hook)
+        additional_step_hooks = []
+        additional_epoch_hooks = []
+        additional_end_hooks = []
 
         ################ Setup Environments
         self.global_env = Environment()
@@ -122,18 +137,17 @@ class Trainer():
                                                  training_parameters.optimizer_arguments, 
                                                  clip_grad_norm=training_parameters.clip_grad_norm, 
                                                  fake_batch_size=training_parameters.fake_batch_size)
+        additional_step_hooks.append(optimizer_hook)
 
         ############### Database stuff
         self.database_session=database
         if database is not None:
             assert db_experiment is not None
-            from ..experiment_tracking import Experiment as DBExperiment
-            if isinstance(db_experiment, int):
-                db_experiment=database.get(DBExperiment, db_experiment)
-            assert isinstance(db_experiment, DBExperiment)
             # This is where the resume stuff should be 
             self.set_database(database_session=database, experiment=db_experiment, resume_from=resume_from)
             database_hook = self.get_database_hook()
+            additional_step_hooks.append(database_hook)
+            additional_end_hooks.append(database_hook)
 
 
         ################ Record stuff in environment
@@ -141,6 +155,7 @@ class Trainer():
             self.global_env.record("loss_fun", training_parameters.loss)
         self.global_env.record_dict(dict(
             model=model,
+            n_epochs=self.n_epochs, 
             total_iter = self.total_iter,
             device=device, 
             data=self.data
@@ -152,10 +167,10 @@ class Trainer():
 
         ################ set hooks
         hook_loader = Loader(training_hook_register)
-        step_hooks = [hook_loader(hook_config) for hook_config in training_parameters.step_hooks] + step_hooks
-        epoch_hooks = [hook_loader(hook_config) for hook_config in training_parameters.epoch_hooks] + epoch_hooks
-        end_hooks = [hook_loader(hook_config) for hook_config in training_parameters.end_hooks] + end_hooks
-        step_hooks.append(optimizer_hook)
+        step_hooks = [hook_loader(hook_config) for hook_config in training_parameters.step_hooks] + step_hooks + additional_step_hooks
+        epoch_hooks = [hook_loader(hook_config) for hook_config in training_parameters.epoch_hooks] + epoch_hooks + additional_epoch_hooks
+        end_hooks = [hook_loader(hook_config) for hook_config in training_parameters.end_hooks] + end_hooks + additional_end_hooks
+
         #TODO: add lr_scheduler
         for hook in step_hooks:
             hook.set_environment(self.iter_env)
@@ -169,6 +184,10 @@ class Trainer():
         self.step_hooks = step_hooks
         self.epoch_hooks = epoch_hooks
         self.end_hooks = end_hooks
+
+        ############## Eventually resume 
+        if resume_from is not None:
+            self.resume(resume_step)
 
 
     def step(self, batch):
@@ -199,6 +218,7 @@ class Trainer():
         loss.backward()
         
         for hook in self.step_hooks:
+            hook.set_environment(self.iter_env)
             hook()
 
     def epoch(self):
@@ -207,22 +227,30 @@ class Trainer():
             last_iteration=self.iteration_n, 
             epoch= self.epoch_n
         ))
-        for batch in self.data:
+
+        if self.skip_n_datapoints is not None:
+            skip_n_steps = self.skip_n_datapoints
+            self.skip_n_datapoints = None
+        else: skip_n_steps = 0
+        for step_n, batch in enumerate(self.data):
+            if step_n < skip_n_steps:
+                continue
             self.step(batch)
             self.iteration_n += 1
 
         for hook in self.epoch_hooks:
+            hook.set_environment(self.epoch_env)
             hook()
 
     def train(self):
         model = self.model
         if model.do_pretraining is not None:
-            info(f"Model {model} has do_pretraining method, launching")
+            log.info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
             self.global_env.run_function(model.do_pretraining)
 
         if model.do_training is not None:
-            info(f"Model {model} has do_training method, using that")
+            log.info(f"Model {model} has do_training method, using that")
             assert callable(model.do_training), "model do_training is not callable!"
             self.global_env.run_function(model.do_training)
             return
@@ -233,6 +261,7 @@ class Trainer():
         
         self.global_env.record("training_finished", True)
         for hook in self.end_hooks:
+            hook.set_environment(self.global_env)
             hook()
 
     @staticmethod
@@ -254,7 +283,39 @@ class Trainer():
                                  for i in seq)
             case _:
                 raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
-    
+
+    def resume(self, step: "int|DBTraining_step|None"):
+        session = self.database_session
+        db_trainingrun = self.database_object
+        assert session is not None
+        assert db_trainingrun is not None
+        ##### 1. get checkpoint (also sets the exact step number)
+        if step is None:
+            checkpoint = db_trainingrun.last_checkpoint()
+            if checkpoint is None:
+                log.warn("tried to resume, but did not find a checkpoint")
+                return
+        else: 
+            step_num = step.step if isinstance(step, DBTraining_step) else step
+            checkpoint = db_trainingrun.last_checkpoint(max_step_n=step_num)
+            if checkpoint is None:
+                log.warn("tried to resume, but did not find a checkpoint")
+                return
+            if checkpoint.step.step < step_num:
+                log.warn(f"asked to resume from step {step_num}, but no checkpoint was found for that step")
+                log.warn(f"using that from  {checkpoint.step.step} instead")
+            
+        self.model.load_checkpoint(checkpoint.checkpoint)
+        step_num = checkpoint.step.step
+
+        epoch, epoch_step = divmod(step_num, len(self.data))
+
+        self.iteration_n = step_num
+        self.epoch_n = epoch
+
+        self.skip_n_steps = epoch_step
+
+
     @staticmethod
     def get_optimizer(name: str|Type[torch.optim.Optimizer], model_parameters, optimizer_arguments):
         if isinstance(name, str):
@@ -277,11 +338,17 @@ class Trainer():
         scheduler = self.get_lr_scheduler(name, optimizer, scheduler_arguments)
         return LRSchedulerHook(scheduler)
 
-    def set_database(self, database_session: "DBSession", experiment: "DBExperiment", resume_from: "int|DBTraining_run|None",):
+    def set_database(self, database_session: "DBSession", experiment: "DBExperiment|int", resume_from: "int|DBTraining_run|None",):
         from ..experiment_tracking import Training_run as DBTraining_run
+        from ..experiment_tracking import Experiment as DBExperiment
+        if isinstance(experiment, int):
+            maybe_experiment: DBExperiment|None =database_session.get(DBExperiment, experiment)
+            assert maybe_experiment is not None, "provided experiment doesn't exist"
+            experiment = maybe_experiment
+        assert isinstance(experiment, DBExperiment)
         match resume_from:
-            case DBTraining_run(database_object=database_object):
-                self.id = database_object.id
+            case DBTraining_run():
+                self.id = resume_from.id
                 self.database_object = resume_from
             case int(id):
                 self.id = id
@@ -292,6 +359,9 @@ class Trainer():
                 database_session.commit()
                 self.id = dbtraining_run.id
                 self.database_object = dbtraining_run
+            case never:
+                assert_never(never)
+        self.global_env.record("database_object", self.database_object)
 
     def get_database_object(self, experiment: "DBExperiment", database_session: "DBSession"):
         from ..experiment_tracking import Training_run as DBTraining_run
@@ -301,7 +371,7 @@ class Trainer():
         return DBTraining_run(
             model= model_db,
             training_parameters=self.training_parameters.model_dump(),
-            experiement=experiment, 
+            experiment=experiment, 
         )
 
     def get_database_hook(self, checkpoint_interval: int = 100, commit_interval: int = 100, loss_name="loss", metrics=[] ):
@@ -319,5 +389,4 @@ class Trainer():
                             and self.device.type == "cuda", 
             num_workers=5 if self.training_parameters.performance_tricks else 0,
             )
-
 
