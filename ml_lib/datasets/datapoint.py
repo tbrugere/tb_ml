@@ -47,7 +47,10 @@ class DictDatapoint(Datapoint):
 
     def __getattr__(self, attr):
         assert attr != "data", "data name cannot be accessed through getattr (because it is reserved) for the underlying dict. This should not happen"
-        return self.get_feature(attr)
+        try:
+            return self.get_feature(attr)
+        except KeyError as e:
+            raise AttributeError from e
 
     @classmethod
     def collate(cls, datapoints: list[Self]):
