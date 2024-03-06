@@ -18,6 +18,13 @@ class Datapoint():
     def collate(cls, datapoints: list[Self]):
         return default_collate(datapoints)
 
+    def __getstate__(self):
+        return self.asdict()
+
+    def __setstate__(self, d):
+        for name, value in d.items():
+            self.name = value
+        
 
 
 class DictDatapoint(Datapoint):
@@ -45,3 +52,6 @@ class DictDatapoint(Datapoint):
     @classmethod
     def collate(cls, datapoints: list[Self]):
         return cls(default_collate([d.data for d in datapoints])) # I think default_collate accepts dicts
+
+    def __setstate__(self, d):
+        self.data = d
