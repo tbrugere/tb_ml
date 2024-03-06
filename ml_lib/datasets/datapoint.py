@@ -39,6 +39,7 @@ class DictDatapoint(Datapoint):
                 for name, value in self.asdict().items()})
 
     def __getattr__(self, attr):
+        assert attr != "data", "data name cannot be accessed through getattr (because it is reserved) for the underlying dict. This should not happen"
         return self.get_feature(attr)
 
     @classmethod
