@@ -201,7 +201,7 @@ class LogGradientInfo(TrainingHook):
     def hook(self):
         import torch
         model = self.env.model
-        gradients = [p.grad for p in model.parameters() if p.requires_grad]
+        gradients = [p.grad for p in model.parameters() if p.requires_grad and p.grad is not None]
         all_gradients_1D = torch.cat([g.reshape(-1) for g in gradients])
         all_gradients_1D_abs = all_gradients_1D.abs()
 
