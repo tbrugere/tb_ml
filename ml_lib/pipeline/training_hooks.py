@@ -197,6 +197,31 @@ class TqdmHook(TrainingHook):
         self.reset_progressbar(initial=step)
 
 @register
+class LogGradientInfo(TrainingHook):
+    def hook(self):
+        import torch
+        model = self.env.model
+        gradients = [p.grad for p in model.parameters() if p.requires_grad]
+        all_gradients_1D = torch.cat([g.reshape(-1) for g in gradients])
+        all_gradients_1D_abs = all_gradients_1D.abs()
+
+        max_grad = all_gradients_1D_abs.max()
+        min_grad = all_gradients_1D_abs.min()
+        average_grad = all_gradients_1D_abs.mean() 
+
+        self.env.max_grad = max_grad
+        self.env.min_grad = min_grad
+        self.env.average_grad = average_grad
+
+        self.env.additional_log_vars = (self.env.get("additional_log_vars") or []) + [
+                ((), "max_grad"), 
+                ((), "min_grad"), 
+                ((), "average_grad")
+                ]
+
+
+
+@register
 class TensorboardHook(TrainingHook):
     
     def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  
