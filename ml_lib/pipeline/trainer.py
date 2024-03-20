@@ -32,9 +32,9 @@ class Training_parameters(BaseModel):
 
     clip_grad_norm: float|None = 1.
 
-    step_hooks: list[dict] = []
-    epoch_hooks: list[dict] = []
-    end_hooks: list[dict] = []
+    step_hooks: list[dict|str] = []
+    epoch_hooks: list[dict|str] = []
+    end_hooks: list[dict|str] = []
 
     environment_variables: dict[str, Any] = Field(default_factory=dict)
 
@@ -84,7 +84,7 @@ class Trainer():
     def __init__(self, model: Model, 
                  data: Union[Dataset, DataLoader, Sequence],
                  training_parameters: Training_parameters, 
-                 device = "cuda:0", 
+                 device: str|torch.device = "cuda:0", 
                  step_hooks: list[TrainingHook] = [], 
                  epoch_hooks: list[TrainingHook] = [],
                  end_hooks: list[TrainingHook] = [],
@@ -97,7 +97,10 @@ class Trainer():
         #TODO: take a train and validation set, or do the separation in-house
 
         device = torch.device(device)
+        self.device = device
         self.training_parameters = training_parameters
+        self.epoch_n = 0
+        self.iteration_n = 0
 
         if training_parameters.lr_scheduler is not None:
             raise NotImplemented
@@ -255,7 +258,7 @@ class Trainer():
             self.global_env.run_function(model.do_training)
             return
 
-        for _ in range(self.n_epochs):
+        while self.epoch_n < self.n_epochs:
             self.epoch()
             self.epoch_n += 1
         
@@ -306,14 +309,14 @@ class Trainer():
                 log.warn(f"using that from  {checkpoint.step.step} instead")
             
         self.model.load_checkpoint(checkpoint.checkpoint)
-        step_num = checkpoint.step.step
+        step_num = checkpoint.step.step + 1# we saved *after* step step_num, so we restart at step_num + 1
 
         epoch, epoch_step = divmod(step_num, len(self.data))
 
         self.iteration_n = step_num
         self.epoch_n = epoch
 
-        self.skip_n_steps = epoch_step
+        self.skip_n_datapoints = epoch_step
 
 
     @staticmethod

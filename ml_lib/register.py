@@ -57,7 +57,7 @@ class Loader(Generic[T]):
     def __init__(self, register: dict[str, T]):
         self.register = register 
 
-    def load_config(self, config_dict: dict):
+    def load_config(self, config_dict: dict|str):
         """load an object from the register using a config file
 
         Reads a config dictionary containing the keys
@@ -68,6 +68,9 @@ class Loader(Generic[T]):
         Args:
             config_dict: dictionary serialized from configuration
         """
+        if isinstance(config_dict, str):
+            config_dict = dict(type=config_dict)
+        assert isinstance(config_dict, dict)
         assert "type" in config_dict
         config_dict = config_dict.copy()
         name = config_dict.pop("type")

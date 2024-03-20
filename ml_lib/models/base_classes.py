@@ -141,14 +141,17 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     do_epoch: Optional[Callable[..., None]] = None
     do_pretraining: Optional[Callable[..., None]] = None
 
-    def __init__(self, name: Optional[str]=None, **hyperparameters):
+    def __init__(self, name: Optional[str]=None, 
+                 eventual_additional_hyperparameters: dict|None=None, 
+                 **hyperparameters):
         nn.Module.__init__(self)
         HasEnvironmentMixin.__init__(self)
         # self.device = _get_default_device()
         self.model_name = name
         self._dummy_param = nn.Parameter()
         hyperparameters = self.fill_with_defaults(hyperparameters)
-        self.set_hyperparameters(**hyperparameters)
+        self.set_hyperparameters(**hyperparameters, 
+                                 eventual_additional_hyperparameters=eventual_additional_hyperparameters)
         self.__setup__()
 
     def __setup__(self):
@@ -264,11 +267,24 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         return {attr_name: getattr(self, attr_name) 
                 for attr_name in self.list_hyperparameters()}
 
-    def set_hyperparameters(self, *, allow_missing=False, **hyperparameters):
+    def set_hyperparameters(self, *, allow_missing=False, 
+                            eventual_additional_hyperparameters: dict|None = None, 
+                            **hyperparameters):
+        """``eventual_additional_hyperparameters`` contains parameters that may be used to 
+        set values, but aren't counted as unknown even if they're not used.
+        They are default values not explicitely given, that can be inferred from eg. the dataset.
+
+        priority:
+            1. provided
+            2. model defaults
+            3. eventual_additional_hyperparameters ("inferred")
+        """
         required = set(self.list_hyperparameters())
         provided = set(hyperparameters.keys())
+        additional_dict = eventual_additional_hyperparameters or dict()
+        additional = set(additional_dict.keys())
         model_name = self.get_model_type()
-        match (required-provided, provided-required):
+        match (required-provided-additional, provided-required):
             case [], []:
                 pass
             case _, [] if allow_missing:
@@ -280,8 +296,12 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             case [], []:
                 raise ValueError(f"Wrong hyperparameters for {model_name}: \n"
                                  f"expected: {required}\n"
-                                 f"provided (including defaults: {provided})\n")
+                                 f"provided (including defaults: {provided})\n"
+                                 f"inferred (dataset): {additional}")
 
+        for attr_name, value in (eventual_additional_hyperparameters or dict()).items():
+            if attr_name not in required: continue
+            setattr(self, attr_name, value)
         for attr_name, value in hyperparameters.items():
             setattr(self, attr_name, value)
 
@@ -302,14 +322,20 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         return Database_Model.from_model(self)
 
-    def get_database_object(self, session: Session) -> Optional["Database_Model"]:
+    def get_database_object(self, session: Session, add_if_needed=False) -> Optional["Database_Model"]:
         from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         if self.id is not None:
-            return session.get(Database_Model, self.id)
+            db_object = session.get(Database_Model, self.id)
         elif self.model_name is not None:
-            return session.query(Database_Model).filter_by(name=self.model_name).first()
+            db_object = session.query(Database_Model).filter_by(name=self.model_name).first()
         else:
             return None
+        if db_object is not None:
+            return db_object
+        if add_if_needed:
+            self.save_to_database(session)
+            return self.get_database_object(session, add_if_needed=False)
+        return None
 
     def sync_with_database_object(self, session: Session) -> None:
         database_object = self.get_database_object(session)

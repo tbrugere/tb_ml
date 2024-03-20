@@ -159,6 +159,23 @@ class Training_run(Base):
             case anything_else: raise ValueError(f"Unexpected query result {anything_else}")
 
 
+    def __str__(self):
+        session = Session.object_session(self)
+        if session is None:
+            return f"{self.__class__.__str__}(model={self.model.name}, id={id})"
+        last_step_query = select(Training_step)\
+                .where(Training_step.training_run_id== self.id)\
+                .order_by(Training_step.step.desc())\
+                .limit(1)
+        last_step = session.execute(last_step_query).one_or_none()
+        if last_step is None:
+            return f"{self.__class__.__str__}(model={self.model.name})"
+        return f"""{self.__class__.__str__}(
+                model={self.model.name}, 
+                last_step={last_step.step}, last_step_time={last_step.step_time}, 
+                last_step_loss={last_step.loss}, 
+                last_step_metrics={last_step.metrcs})"""
+
 class Training_step(Base):
     __tablename__ = 'steps'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -196,10 +213,10 @@ class Experiment(Base):
     __tablename__ = 'experiments'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String, unique=True)
     description: Mapped[Optional[str]] = mapped_column(String)
 
-    models: Mapped[Model] = relationship('Model', secondary=experiment_models, back_populates='experiments')
+    models: Mapped[list[Model]] = relationship('Model', secondary=experiment_models, back_populates='experiments')
     tests: Mapped[Test] = relationship('Test', secondary=experiment_tests, back_populates='experiments')
     training_runs: Mapped[Training_run] = relationship('Training_run',) 
                                                        # secondary='experiment_training_runs', 
