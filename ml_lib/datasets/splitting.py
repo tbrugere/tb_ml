@@ -1,3 +1,5 @@
+from typing import Optional
+import functools as ft
 import numpy as np
 from numpy.random import default_rng; rng = default_rng()
 
@@ -27,3 +29,16 @@ def split_arrays(split_indices, *arrays):
     if len(ret) == 1:
         ret, = ret
     return ret
+
+
+# class SplitDataset():
+#
+#     train: Optional[torch.DataLoader]
+#     validate: Optional[torch.DataLoader]
+#     test: Optional[torch.Dataloader]
+#
+#
+#
+#     def __init__(self, train, validate, test):
+#         pass
+

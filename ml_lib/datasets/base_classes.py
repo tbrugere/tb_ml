@@ -25,6 +25,11 @@ class Dataset(torch_data.Dataset, Generic[Element]):
     def collate(self, data: list[Element]):
         return self.datatype.collate(data)
 
+    def dataset_parameters(self):
+        """Parameters that can be inferred from the dataset. 
+        This is given to models. 
+        It can be eg. feature_size or feature_specs"""
+        return dict()
 
 class Transform(Dataset[Element2], Generic[Element, Element2]):
     """

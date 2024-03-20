@@ -23,7 +23,7 @@ class Datapoint():
 
     def __setstate__(self, d):
         for name, value in d.items():
-            self.name = value
+            setattr(self, name, value)
         
 
 
