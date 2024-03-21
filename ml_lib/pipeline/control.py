@@ -70,8 +70,7 @@ class CommandLine():
         parser = ArgumentParser()
 
         parser.add_argument("config", 
-                            type=Path, 
-                            required=True)
+                            type=Path, )
         parser.add_argument("command", nargs="+", type=str)
         parser.add_argument("--device", type=str, default=None)
         parser.add_argument("--database", type=Path, 
