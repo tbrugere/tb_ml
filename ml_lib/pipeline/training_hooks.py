@@ -224,9 +224,9 @@ class LogGradientInfo(TrainingHook):
 @register
 class TensorboardHook(TrainingHook):
     
-    def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, run_name:str,  
+    def __init__(self, interval: int=1, *, tensorboard_dir:Optional[str] = None, 
+                 run_name:str|None=None,  
                  log_vars = ["loss"]):
-        from torch.utils import tensorboard
         super().__init__(interval, absolutely_necessary=False)
         if tensorboard_dir is None:
             if "TENSORBOARD" in os.environ: 
@@ -237,10 +237,19 @@ class TensorboardHook(TrainingHook):
                     Path(f"{os.environ['HOME']}/tensorboard")])
             if tensorboard_path is None: tensorboard_path = Path("tensorboard")
         else : tensorboard_path = Path(tensorboard_dir)
-        tensorboard_path = tensorboard_path / run_name
+        self.run_name = run_name
+        self.tensorboard_path = tensorboard_path
+        from torch.utils import tensorboard
         self.tensorboard = tensorboard
-        self.writer = tensorboard.SummaryWriter(str(tensorboard_path))
         self.log_vars = [scopevar_of_str(v) for v in log_vars]
+
+    def setup(self):
+        run_name = self.run_name
+        if run_name is None: 
+            run_name = self.env.model.model_name
+        assert run_name is not None
+        tensorboard_path = self.tensorboard_path / run_name
+        self.writer = self.tensorboard.SummaryWriter(str(tensorboard_path))
 
     def hook(self):
         step = self.env.iteration
