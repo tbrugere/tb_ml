@@ -371,10 +371,11 @@ class Trainer():
         model_db = self.model.get_database_object(database_session)
         if model_db is None:
             raise ValueError("Model doesn't have an id or a name, couldn't register to database")
+        assert experiment in database_session
         return DBTraining_run(
             model= model_db,
             training_parameters=self.training_parameters.model_dump(),
-            experiment=experiment, 
+            experiment_id=experiment.id, 
         )
 
     def get_database_hook(self, checkpoint_interval: int = 100, commit_interval: int = 100, loss_name="loss", metrics=[] ):
