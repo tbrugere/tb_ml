@@ -91,6 +91,14 @@ class TarDataset(Dataset[PointType]):
     def __repr__(self):
         return f"{self.__class__.__name__}({str(self.file_path)})"
 
+    def dataset_parameters(self):
+        return {**self.metadata}
+
+    def __del__(self):
+        if self._file is not None:
+            self._file.close()
+       
+
         
 @register
 class TarNpzDataset(TarDataset[DictDatapoint]):
