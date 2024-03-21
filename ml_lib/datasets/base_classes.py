@@ -69,5 +69,9 @@ class Transform(Dataset[Element2], Generic[Element, Element2]):
             raise ValueError(f"Transform {self} needs to be applied to a dataset before using it")
         return self._inner
 
+    def dataset_parameters(self):
+        """The default is simply to pass through"""
+        return self.inner.dataset_parameters()
+
 # class IterableTransform(Transform, IterableDataset):
 #     pass

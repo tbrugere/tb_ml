@@ -1,4 +1,6 @@
 """Some simple synthetic datasets of geometric shapes
+These datasets are legacy, and I haven't updated them to use "Datapoint" classes
+so try not to use too much, might break in unexpected ways
 """
 from math import pi
 import torch
@@ -6,6 +8,7 @@ from torch import cos, sin
 
 from ml_lib.datasets.base_classes import Dataset
 from ml_lib.datasets.registration import register
+from ml_lib.datasets.feature_specification import FeatureSpecification, MSEFeature
 
 def _sample_4Dtorus(n=1, noise=.01):
     theta = torch.rand(n) * 2 * pi
@@ -46,6 +49,11 @@ class Torus4D(Dataset[torch.Tensor]):
             
     def __len__(self):
         return self.size // self.batch_size
+
+    def dataset_parameters(self):
+        return dict(
+            feature_specification= FeatureSpecification([MSEFeature("location", 4)])
+                )
 
 @register
 class Torus3D(Dataset[torch.Tensor]):

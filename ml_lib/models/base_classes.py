@@ -317,7 +317,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
 
         parameter_type = hyperparameters[attr_name]
         if not isinstance(value, get_type_origin(parameter_type)):
-            if deserialize and issubclass(parameter_type, LoadableMixin) and isinstance(value, dict):
+            if deserialize and issubclass(get_type_origin(parameter_type), LoadableMixin) and isinstance(value, dict):
                 value = parameter_type.from_config(value)
             else:
                 log.warn(f"Setting parameter {attr_name} to value {value}, which is of the wrong type: expected {parameter_type}")
