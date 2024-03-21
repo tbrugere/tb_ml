@@ -47,7 +47,9 @@ class CommandLine():
     def database_session(self):
         from sqlalchemy import create_engine, URL
         from sqlalchemy.orm import Session
+        from ml_lib.pipeline.experiment_tracking import create_tables
         db_engine = create_engine(URL.create("sqlite", database=str(self.database)))
+        create_tables(db_engine)
         return Session(db_engine)
 
     @classmethod
