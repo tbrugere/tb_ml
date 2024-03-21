@@ -21,7 +21,7 @@ import torch.nn as nn
 
 from ml_lib.register import LoadableMixin, try_serializing
 from ..environment import HasEnvironmentMixin
-from ml_lib.misc.typing import get_type_origin
+from ml_lib.misc.typing import get_type_origin, advanced_type_check
 from ..misc import human_readable
 
 Parameters = ParamSpec("Parameters")
@@ -316,8 +316,12 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             hyperparameters = dict(self.list_hyperparameters(return_types=True))
 
         parameter_type = hyperparameters[attr_name]
-        if not isinstance(value, get_type_origin(parameter_type)):
-            if deserialize and issubclass(get_type_origin(parameter_type), LoadableMixin) and isinstance(value, dict):
+        if not advanced_type_check(value, parameter_type):
+            try:
+                should_deserialize = deserialize and issubclass(get_type_origin(parameter_type), LoadableMixin) and isinstance(value, dict)
+            except TypeError:
+                should_deserialize = False
+            if should_deserialize:
                 value = parameter_type.from_config(value)
             else:
                 log.warn(f"Setting parameter {attr_name} to value {value}, which is of the wrong type: expected {parameter_type}")

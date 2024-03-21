@@ -1,4 +1,5 @@
-from typing import TypeVar, ParamSpec, Callable, Optional, Any
+import typing
+from typing import TypeVar, ParamSpec, Callable, Optional, Any, Literal
 
 T = TypeVar('T')
 P = ParamSpec('P')
@@ -23,3 +24,17 @@ def get_type_origin(t):
         return t
     else: 
         return get_type_origin(t.__origin__)
+
+def advanced_type_check(value, t):
+    """Todo edit, to check for subscripted types for example"""
+
+    origin = typing.get_origin(t)
+    if origin is None:
+        return isinstance(value, t)
+    if origin == typing.Annotated:
+        new_t, *_ = typing.get_args(t)
+        return advanced_type_check(value, new_t)
+    if origin == Literal:
+        args = typing.get_args(t)
+        return value in args
+    return isinstance(value, origin)
