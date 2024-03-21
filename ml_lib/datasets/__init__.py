@@ -9,7 +9,7 @@ Datasets
 """
 
 from . import transforms
-from . import simple_shapes
+from . import datasets
 from ..register import Loader
 from .registration import register, transform_register
 from .splitting import split_arrays, split_indices

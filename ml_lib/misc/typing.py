@@ -16,3 +16,10 @@ def take_annotation_from(this: Callable[P, T]) -> Callable[[Callable], Callable[
 # def kwargs_passed_down_to(target: Callable[P, Any]) -> \
 #         Callable[[Callable[Q, T]], Callable[Concatenate[Q, P], T]]:
 #     raise NotImplementedError
+
+def get_type_origin(t):
+    """recursively looks at a type's __origin__ until we can't"""
+    if not hasattr(t, "__origin__"):
+        return t
+    else: 
+        return get_type_origin(t.__origin__)

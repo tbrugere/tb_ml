@@ -2,10 +2,10 @@
 """
 from math import pi
 import torch
-from .base_classes import Dataset
 from torch import cos, sin
 
-from .registration import register
+from ml_lib.datasets.base_classes import Dataset
+from ml_lib.datasets.registration import register
 
 def _sample_4Dtorus(n=1, noise=.01):
     theta = torch.rand(n) * 2 * pi
