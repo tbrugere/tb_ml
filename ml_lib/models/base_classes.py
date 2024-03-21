@@ -149,9 +149,10 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         # self.device = _get_default_device()
         self.model_name = name
         self._dummy_param = nn.Parameter()
-        hyperparameters = self.fill_with_defaults(hyperparameters)
-        self.set_hyperparameters(**hyperparameters, 
-                                 eventual_additional_hyperparameters=eventual_additional_hyperparameters)
+        if eventual_additional_hyperparameters is None:
+            eventual_additional_hyperparameters = {}
+        hyperparameters = self.fill_with_defaults(hyperparameters, eventual_additional_hyperparameters)
+        self.set_hyperparameters(**hyperparameters, )
         self.__setup__()
 
     def __setup__(self):
@@ -268,7 +269,6 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
                 for attr_name in self.list_hyperparameters()}
 
     def set_hyperparameters(self, *, allow_missing=False, 
-                            eventual_additional_hyperparameters: dict|None = None, 
                             **hyperparameters):
         """``eventual_additional_hyperparameters`` contains parameters that may be used to 
         set values, but aren't counted as unknown even if they're not used.
@@ -276,13 +276,11 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
 
         priority:
             1. provided
-            2. model defaults
+            2. model defaults 
             3. eventual_additional_hyperparameters ("inferred")
         """
         required = set(self.list_hyperparameters())
         provided = set(hyperparameters.keys())
-        additional_dict = eventual_additional_hyperparameters or dict()
-        additional = set(additional_dict.keys())
         model_name = self.get_model_type()
         match (required-provided-additional, provided-required):
             case [], []:
@@ -296,20 +294,20 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             case [], []:
                 raise ValueError(f"Wrong hyperparameters for {model_name}: \n"
                                  f"expected: {required}\n"
-                                 f"provided (including defaults: {provided})\n"
-                                 f"inferred (dataset): {additional}")
+                                 f"provided (including defaults and inferred: {provided})"                                 )
 
-        for attr_name, value in (eventual_additional_hyperparameters or dict()).items():
-            if attr_name not in required: continue
-            setattr(self, attr_name, value)
         for attr_name, value in hyperparameters.items():
             setattr(self, attr_name, value)
 
     @classmethod
-    def fill_with_defaults(cls, partial_hyperparameters, allow_missing=False):
+    def fill_with_defaults(cls, partial_hyperparameters, 
+                           eventual_additional_hyperparameters, 
+                           allow_missing=False):
         for attr_name in cls.list_hyperparameters(return_types=False):
             if attr_name not in partial_hyperparameters and hasattr(cls, attr_name):
                 partial_hyperparameters[attr_name] = deepcopy(getattr(cls, attr_name))
+            elif attr_name not in partial_hyperparameters and attr_name in eventual_additional_hyperparameters:
+                partial_hyperparameters[attr_name] = deepcopy(eventual_additional_hyperparameters[attr_name])
             elif attr_name not in partial_hyperparameters and not allow_missing:
                 raise ValueError(f"Missing hyperparameter {attr_name}, and no default value is set")
         return partial_hyperparameters
