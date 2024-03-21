@@ -279,17 +279,18 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             2. model defaults 
             3. eventual_additional_hyperparameters ("inferred")
         """
+        from ml_lib.misc.matchers import EmptySet
         required = set(self.list_hyperparameters())
         provided = set(hyperparameters.keys())
         model_name = self.get_model_type()
         match (required-provided, provided-required):
-            case [], []:
+            case EmptySet(), EmptySet():
                 pass
-            case _, [] if allow_missing:
+            case _, EmptySet() if allow_missing:
                 pass
-            case missing, []:
+            case missing, EmptySet():
                 raise ValueError(f"Missing hyperparameters for {model_name} : {missing}")
-            case [], unknown:
+            case EmptySet(), unknown:
                 raise ValueError(f"Unknown hyperparameters for {model_name}: {unknown}")
             case _, _:
                 raise ValueError(f"Wrong hyperparameters for {model_name}: \n"
