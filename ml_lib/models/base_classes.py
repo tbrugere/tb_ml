@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 import torch
 import torch.nn as nn
 
+from ml_lib.register import LoadableMixin, try_serializing
 from ..environment import HasEnvironmentMixin
 from ..misc import human_readable
 
@@ -264,11 +265,16 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
                 if hasattr(t, "__metadata__") and
                 IS_HYPERPARAM in t.__metadata__]
 
-    def get_hyperparameters(self):
+    def get_hyperparameters(self, serializable=False):
+        if serializable:
+            return {attr_name: try_serializing(getattr(self, attr_name))
+                    for attr_name in self.list_hyperparameters()}
+
         return {attr_name: getattr(self, attr_name) 
                 for attr_name in self.list_hyperparameters()}
 
-    def set_hyperparameters(self, *, allow_missing=False, 
+
+    def set_hyperparameters(self, *, allow_missing=False, deserialize=True, 
                             **hyperparameters):
         """``eventual_additional_hyperparameters`` contains parameters that may be used to 
         set values, but aren't counted as unknown even if they're not used.
@@ -280,6 +286,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             3. eventual_additional_hyperparameters ("inferred")
         """
         from ml_lib.misc.matchers import EmptySet
+        all_hyperparameters_with_types = dict(self.list_hyperparameters(return_types=True))
         required = set(self.list_hyperparameters())
         provided = set(hyperparameters.keys())
         model_name = self.get_model_type()
@@ -298,7 +305,23 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
                                  f"provided (including defaults and inferred: {provided})"                                 )
 
         for attr_name, value in hyperparameters.items():
-            setattr(self, attr_name, value)
+            self.set_hyperparameter(attr_name, value, deserialize=deserialize, 
+                                    hyperparameters=all_hyperparameters_with_types)
+
+    def set_hyperparameter(self, attr_name, value, 
+                           deserialize=True, 
+                           hyperparameters: dict[str, type]|None=None):
+        if hyperparameters is None:
+            hyperparameters = dict(self.list_hyperparameters(return_types=True))
+
+        parameter_type = hyperparameters[attr_name]
+        if not isinstance(value, parameter_type):
+            if deserialize and issubclass(parameter_type, LoadableMixin) and isinstance(value, dict):
+                value = parameter_type.from_config(value)
+            else:
+                log.warn(f"Setting parameter {attr_name} to value {value}, which is of the wrong type: expected {parameter_type}")
+        setattr(self, attr_name, value)
+        
 
     @classmethod
     def fill_with_defaults(cls, partial_hyperparameters, 

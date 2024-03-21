@@ -1,4 +1,4 @@
-from typing import overload, TypeVar, Callable, Generic, Optional
+from typing import overload, TypeVar, Callable, Generic, Optional, ClassVar, Self, Any
 
 # import collections
 import functools as ft
@@ -79,3 +79,18 @@ class Loader(Generic[T]):
         return self.register[name](*args, **kwargs)
 
     __call__ = load_config
+
+
+class LoadableMixin():
+    @classmethod 
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        return cls(**config)
+
+    def to_config(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+
+def try_serializing(x):
+    if isinstance(x, LoadableMixin):
+        return x.to_config()
+    return x

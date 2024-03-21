@@ -64,7 +64,7 @@ class Model(Base):
             name=model.model_name,
             description=model.description,
             model_type=model.get_model_type(), 
-            parameters=model.get_hyperparameters()
+            parameters=model.get_hyperparameters(serialize=True)
         )
 
     def load_model(self, load_latest_checkpoint: bool = True, session: Optional[Session] = None):

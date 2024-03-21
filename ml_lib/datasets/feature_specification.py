@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, ClassVar, Any
 from dataclasses import dataclass, field as dataclass_field
 
 import torch
@@ -7,6 +7,8 @@ import torch.nn.functional as F
 
 from ml_lib.misc import all_equal
 from ml_lib.misc.torch_functions import broadcastable
+from ml_lib.register import Register, LoadableMixin, Loader
+
 
 @dataclass
 class FeatureType():
@@ -64,8 +66,16 @@ class FeatureType():
         self.dim = state["dim"]
         self.loss_coef = state["loss_coef"]
 
+    def to_dict(self):
+        return dict(
+            type=self.__class__.__name__, 
+            **self.__getstate__()
+                )
+
+feature_type_register = Register(FeatureType)
 
 
+@feature_type_register
 class MSEFeature(FeatureType):
     def compute_loss(self, input, target, reduce=True) -> Tensor:
         loss = (input - target).square()
@@ -73,6 +83,7 @@ class MSEFeature(FeatureType):
         else: loss = loss.mean(dim=-1)
         return loss
 
+@feature_type_register
 class OneHotFeature(FeatureType):
     def compute_loss(self, input, target, reduce=True) -> Tensor:
         return F.cross_entropy(input=input, target=target, 
@@ -83,6 +94,7 @@ class OneHotFeature(FeatureType):
     def encode(self, input):
         return F.one_hot(input, num_classes=self.dim)
 
+@feature_type_register
 class BinaryFeature(FeatureType):
     def compute_loss(self, input, target, reduce=True) -> Tensor:
         return F.binary_cross_entropy_with_logits(input=input, target=target,
@@ -92,7 +104,7 @@ class BinaryFeature(FeatureType):
         return input > 0
 
 @dataclass
-class FeatureSpecification():
+class FeatureSpecification(LoadableMixin):
     """
     Used to keep track of the signification of the features used in a datapoint 
     (node features / edge features / set features / simple feature vector).
@@ -107,6 +119,7 @@ class FeatureSpecification():
 
     (the names given as ``string`` can be chosen depending on what the feature represents)
     """ 
+    feature_type_register: ClassVar = feature_type_register
     features: list[FeatureType]
 
     @property
@@ -150,3 +163,16 @@ class FeatureSpecification():
     def __repr__(self):
         features_repr = [repr(feature) for feature in self.features]
         return f"FeatureSpecification({', '.join(features_repr)})"
+
+    def to_config(self):
+        return dict(
+            type=self.__class__.__name__, 
+            features=[f.to_dict() for f in self.features])
+
+    @classmethod
+    def from_config(cls, config:dict[str, Any]):
+        assert config["type"] == cls.__name__
+        loader = Loader(cls.feature_type_register)
+        features = [loader(f) for f in config["features"]]
+        return cls(features)
+
