@@ -60,22 +60,12 @@ class CommandLine():
                    database=args.database
                    )
 
-    @staticmethod
-    def get_experiment(experiment: Experiment|ExperimentConfig|PathLike,):
-        match experiment:
-            case Experiment():
-                return experiment
-            case ExperimentConfig()
-        if isinstance(experiment, Experiment): return experiment
-        elif
-        return Experiment.from_yaml()
-
-
     
     @staticmethod
     def argument_parser():
         from argparse import ArgumentParser
         from pathlib import Path
+        import os
 
         parser = ArgumentParser()
 
@@ -84,7 +74,8 @@ class CommandLine():
                             required=True)
         parser.add_argument("command", nargs="+", type=str)
         parser.add_argument("--device", type=str, default=None)
-        parser.add_argument("--database", type=Path, default=None)
+        parser.add_argument("--database", type=Path, 
+                            default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
         return parser
 
 
