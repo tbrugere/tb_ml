@@ -1,6 +1,7 @@
-from typing import TypeVar, IO
+from typing import TypeVar, IO, ClassVar
 from os import PathLike
 import tarfile
+import yaml
 
 from ..base_classes import Dataset
 from ..datapoint import Datapoint, DictDatapoint
@@ -31,6 +32,7 @@ class TarDataset(Dataset[PointType]):
     What isn't safe?
         please don't edit the tar file while reading from it?
     """
+    metadata_file: ClassVar[str] = "__metadata__"
 
     file_path: PathLike
 
@@ -38,11 +40,22 @@ class TarDataset(Dataset[PointType]):
     
     _file: None|tarfile.TarFile = None
 
+    metadata: dict
+
     def __init__(self, tar_file: PathLike):
         self.file_path = tar_file
         self._file = None
         file = self.tar_file # actually initializes the _file
-        self.members_list = file.getnames()
+        members_list = file.getnames()
+        if self.metadata_file in members_list:
+            members_list = [member for member in members_list 
+                            if member != self.metadata_file]
+            metadata_file = file.extractfile(self.metadata_file)
+            assert metadata_file is not None
+            self.metadata = yaml.safe_load(metadata_file)
+        else: 
+            self.metadata = dict()
+        self.members_list = members_list
 
     def __getitem__(self, i):
         member_name = self.members_list[i]
@@ -87,6 +100,7 @@ class TarNpzDataset(TarDataset[DictDatapoint]):
     The numpy vectors are transformed to torch tensors, and returned
     as DictDatapoints
     """
+    datatype = DictDatapoint
 
     def read_element(self, file: IO[bytes]):
         import numpy as np
@@ -102,6 +116,7 @@ class TarTorchDataset(TarDataset[DictDatapoint]):
     The numpy vectors are transformed to torch tensors, and returned
     as DictDatapoints
     """
+    datatype = DictDatapoint
 
     def read_element(self, file: IO[bytes]):
         import torch
