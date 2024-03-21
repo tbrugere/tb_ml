@@ -129,6 +129,7 @@ class Checkpoint(Base):
             checkpoint=model.get_checkpoint()
         )
 
+@auto_repr("id", "experiment_id", "model_id", "steps", "model")
 class Training_run(Base):
     __tablename__ = 'training_runs'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -208,7 +209,7 @@ class Test(Base):
 
 
 
-
+@auto_repr("id", "name", "description")
 class Experiment(Base):
     __tablename__ = 'experiments'
 

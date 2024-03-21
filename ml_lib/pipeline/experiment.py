@@ -99,6 +99,9 @@ class Experiment():
         self.database_session = database_session
         self.name = config.name or name
         self.set_database()
+        if self.database_session is not None:
+            assert self.database_object is not None
+            assert self.database_object in self.database_session
 
     @classmethod
     def from_yaml(cls, yaml_file: Path|TextIOBase|str, database_session: "DBSession|None" = None, name: str|None = None):
