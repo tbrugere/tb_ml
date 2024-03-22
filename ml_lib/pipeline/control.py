@@ -36,11 +36,10 @@ class CommandLine():
             for command in self.commands:
                 self.run_command(exp, command)
 
-    @staticmethod
-    def run_command(exp, command: CommandType):
+    def run_command(self, exp, command: CommandType):
         match command:
             case "train":
-                exp.train_all()
+                exp.train_all(device=self.device)
             case "_":
                 raise NotImplementedError(f"Unsupported command {command}")
         
