@@ -38,9 +38,8 @@ class ModelConfig(BaseModel):
         model_class: type[Model] = register[self.type]#type:ignore
         model = model_class(**self.params, 
                            eventual_additional_hyperparameters=additional_params, 
+                           db_session=database_session, 
                            name=self.name)
-        if database_session is not None:
-            model.sync_with_database_object(database_session)
         if load_checkpoint:
             raise NotImplementedError
         return model

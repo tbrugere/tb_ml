@@ -137,6 +137,8 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     id: Optional[int]=None # id of the model in the database
     _dummy_param: nn.Parameter
 
+    db_session: Session|None = None
+
     predict: Optional[Callable] = None
     sample: Optional[Callable] = None
     do_training: Optional[Callable[..., None]] = None
@@ -145,6 +147,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
 
     def __init__(self, name: Optional[str]=None, 
                  eventual_additional_hyperparameters: dict|None=None, 
+                 db_session: Session|None = None, 
                  **hyperparameters):
         nn.Module.__init__(self)
         HasEnvironmentMixin.__init__(self)
@@ -155,6 +158,9 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             eventual_additional_hyperparameters = {}
         hyperparameters = self.fill_with_defaults(hyperparameters, eventual_additional_hyperparameters)
         self.set_hyperparameters(**hyperparameters, )
+        self.db_session = db_session
+        if db_session is not None:
+            self.sync_with_database_object(db_session)
         self.__setup__()
 
     def __setup__(self):
@@ -349,7 +355,10 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         return Database_Model.from_model(self)
 
-    def get_database_object(self, session: Session, add_if_needed=False) -> Optional["Database_Model"]:
+    def get_database_object(self, session: Session|None = None, add_if_needed=False) -> Optional["Database_Model"]:
+        if session is None:
+            session = self.db_session
+        assert session is not None
         from ml_lib.pipeline.experiment_tracking import Model as Database_Model
         if self.id is not None:
             db_object = session.get(Database_Model, self.id)
@@ -364,7 +373,10 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             return self.get_database_object(session, add_if_needed=False)
         return None
 
-    def sync_with_database_object(self, session: Session) -> None:
+    def sync_with_database_object(self, session: Session|None = None) -> None:
+        if session is None:
+            session = self.db_session
+        assert session is not None
         database_object = self.get_database_object(session)
         if database_object is not None:
             self.id = database_object.id
