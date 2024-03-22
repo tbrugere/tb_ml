@@ -96,6 +96,11 @@ class Model(Base):
                 .limit(1)
 
 
+    @classmethod
+    def get_by_name(cls, name: str,  session: Session):
+        query = select(cls).where(cls.name == name)
+        return  session.execute(query).one_or_none()
+
 
 class Checkpoint(Base):
     __tablename__ = 'checkpoints'
