@@ -224,8 +224,9 @@ class Experiment():
             case "highest_step":
                 training_run_query = training_run_query\
                         .join(DBTraining_run.steps)\
-                        .order_by(DBTraining_step.step.desc())\
+                        .order_by(DBTraining_step.step.desc(), DBTraining_step.step_time.desc())\
                         .limit(1)
+                        # first by step number, and then by date for same
                 result = session.execute(training_run_query).one_or_none()
                 if result is None: return None 
                 else: return result[0]
