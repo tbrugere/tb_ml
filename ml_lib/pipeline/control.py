@@ -17,10 +17,11 @@ class CommandLine():
     device: "torch.device"
     commands: list[str]
     database: Path
+    resume: str
 
     def __init__(self, experiment: PathLike, commands, *,
                  device: "str|torch.device|None"=None, 
-                 database: PathLike): 
+                 database: PathLike, resume:str): 
         import torch
         self.experiment_config=Path(experiment)
         if device is None:
@@ -28,6 +29,7 @@ class CommandLine():
         self.device = torch.device(device)
         self.commands = commands
         self.database = Path(database)
+        self.resume = resume
         
     def run(self):
         with self.database_session() as db_session:
@@ -39,7 +41,7 @@ class CommandLine():
     def run_command(self, exp, command: CommandType):
         match command:
             case "train":
-                exp.train_all(device=self.device)
+                exp.train_all(device=self.device, resume_from=self.resume)
             case "_":
                 raise NotImplementedError(f"Unsupported command {command}")
         
@@ -58,7 +60,8 @@ class CommandLine():
         return cls(args.config, 
                    commands=args.command, 
                    device=args.device, 
-                   database=args.database
+                   database=args.database, 
+                   resume=args.resume
                    )
 
     
@@ -76,6 +79,7 @@ class CommandLine():
         parser.add_argument("--device", type=str, default=None)
         parser.add_argument("--database", type=Path, 
                             default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
+        parser.add_argument("--resume", type=str, default="highest_step")
         return parser
 
 

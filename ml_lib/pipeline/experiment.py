@@ -274,6 +274,7 @@ class Experiment():
                                               load_checkpoint=False)
         data = self.load_dataset(model_params.training_set)
 
+        if resume_from == "no": resume_from = False
         if resume_from and self.database_object is not None:
             trainer_db = self.get_training_run_from_db(model_, 
                                                        resume_from=resume_from)
@@ -296,7 +297,8 @@ class Experiment():
 
         return model_
 
-    def train_all(self, device:"torch.device|str" = "cpu"):
+    def train_all(self, device:"torch.device|str" = "cpu", 
+                  resume_from="highest_step"):
         for i in range(self.n_models):
-            self.train(i, device)
+            self.train(i, device, resume_from=resume_from)
 
