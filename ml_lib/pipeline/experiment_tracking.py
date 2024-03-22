@@ -97,9 +97,12 @@ class Model(Base):
 
 
     @classmethod
-    def get_by_name(cls, name: str,  session: Session):
+    def get_by_name(cls, name: str,  session: Session) -> Self|None:
         query = select(cls).where(cls.name == name)
-        return  session.execute(query).one_or_none()
+        model_or_none = session.execute(query).one_or_none()
+        if model_or_none is None: return None
+        model, = model_or_none
+        return model
 
 
 class Checkpoint(Base):
