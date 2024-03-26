@@ -105,7 +105,6 @@ class Model(Base):
         model, = model_or_none
         return model
 
-
 class Checkpoint(Base):
     __tablename__ = 'checkpoints'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -137,6 +136,9 @@ class Checkpoint(Base):
             is_last=is_last,
             checkpoint=model.get_checkpoint()
         )
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(model={self.model.name}, step={self.step.step})"
 
 @auto_repr("id", "experiment_id", "model_id", "steps", "model")
 class Training_run(Base):
