@@ -317,6 +317,19 @@ class Trainer():
         self.epoch_n = epoch
 
         self.skip_n_datapoints = epoch_step
+        
+        self.epoch_env.record_dict(dict(
+            last_iteration=self.iteration_n, 
+            epoch= self.epoch_n
+        ))
+        for hook in self.epoch_hooks:
+            hook.set_environment(self.epoch_env)
+            hook.set_state()
+
+        self.iter_env.record("iteration", self.iteration_n)
+        for hook in self.step_hooks:
+            hook.set_environment(self.iter_env)
+            hook.set_state()
 
 
     @staticmethod
