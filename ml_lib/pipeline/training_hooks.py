@@ -366,7 +366,10 @@ class DatabaseHook(EndAndStepHook):
                 metrics=metrics, 
                 )
 
-        if ((step + 1) % self.checkpoint_interval) == 0:
+        is_checkpointing_step = ((step + 1) % self.checkpoint_interval) == 0
+        should_checkpoint = is_last or is_checkpointing_step
+
+        if should_checkpoint:
             model = self.env.model
             checkpoint = DBCheckpoint.from_model(
                     model, is_last=is_last, step=training_step, 
