@@ -2,7 +2,7 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
-from typing import Optional, Any, TYPE_CHECKING, Self
+from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from sqlalchemy import create_engine, select
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
 from sqlalchemy.types import JSON, LargeBinary
@@ -149,6 +149,7 @@ class Training_run(Base):
 
     model_id: Mapped[int] = mapped_column(Integer, ForeignKey('models.id'))
     model: Mapped[Model] = relationship('Model', back_populates='training_runs')
+    n_steps: Mapped[int] = mapped_column(Integer)
     steps: Mapped[list["Training_step"]] = relationship('Training_step', back_populates='training_run')
 
     experiment_id: Mapped[int] = mapped_column(Integer, ForeignKey('experiments.id'))
@@ -170,6 +171,54 @@ class Training_run(Base):
             case (Checkpoint() as c,): return c
             case anything_else: raise ValueError(f"Unexpected query result {anything_else}")
 
+    def is_finished(self, with_checkpoint=True):
+        if with_checkpoint:
+            return self.last_checkpoint() is not None
+        else:
+            raise NotImplementedError("What's the point of checking if the training finished but didn't checkpoint at the end ???")
+
+    def time_span(self):
+        from sqlalchemy import func
+        query = select(func.min(Training_step.step_time), func.max(Training_step.step_time))
+        session = Session.object_session(self)
+        if session is None: raise ValueError("Object is not in a database session, cannot pull info")
+        time_start, time_end = session.execute(query).one()
+        return time_start, time_end
+            
+    def get_info_str(self):
+        from io import StringIO
+        name_info = f"training run {self.id}"
+        time_start, time_end = self.time_span()
+        if time_start is None:
+            time_info = "NEVER RAN."
+        else:
+            assert time_end is not None
+            time_info = f"{time_start} - {time_end}"
+
+        last_checkpoint = self.last_checkpoint()
+        if last_checkpoint is None:
+            last_checkpoint_n = "NO CHECKPOINT"
+        else: last_checkpoint_n = last_checkpoint.step.step
+
+        n_steps= self.n_steps
+        
+        progress_info = f"{last_checkpoint_n}/{n_steps}"
+
+        match last_checkpoint:
+            case None: status_icon = "✗"
+            case Checkpoint(is_last=True): status_icon = "✓"
+            case Checkpoint(): status_icon = "…"
+            case something_else: assert_never(something_else)
+
+        return f"{status_icon} — {name_info} — {progress_info} — {time_info}"
+
+
+        
+    def get_parameter(self, parameter_name: str):
+        if self.training_parameters is None:
+            return None
+        return self.training_parameters.get(parameter_name, None)
+        
 
     def __str__(self):
         session = Session.object_session(self)
@@ -203,7 +252,7 @@ class Training_step(Base):
     loss: Mapped[Optional[float]] = mapped_column(Float)
     metrics: Mapped[Optional[dict]] = mapped_column(JSON)
 
-    checkpoints: Mapped[Checkpoint] = relationship('Checkpoint', back_populates='step')
+    checkpoints: Mapped[list[Checkpoint]] = relationship(Checkpoint)
 
     def __str__(self):
         checkpoint = "CHECKPOINTED" if self.checkpoints else ""
