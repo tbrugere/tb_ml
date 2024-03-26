@@ -14,6 +14,7 @@ from ..register import Loader
 from .registration import register, transform_register
 from .splitting import split_arrays, split_indices
 from .base_classes import Dataset, Transform
+from .datapoint import Datapoint
 
 load_dataset = Loader(register)
 load_transform = Loader(transform_register)
@@ -25,4 +26,5 @@ __all__ = ['load_dataset',
            'transform_register', 
            'split_arrays', 
            'split_indices', 
-           'Dataset']
+           'Dataset', 'Transform', 
+           'Datapoint']
