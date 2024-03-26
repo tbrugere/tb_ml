@@ -73,7 +73,7 @@ class Model(Base):
             parameters = {}
         else: 
             parameters = self.parameters
-        model = model_type(**parameters)
+        model = model_type(**parameters, name=self.name, db_session=session)
 
         if load_latest_checkpoint:
             if session is None: 
