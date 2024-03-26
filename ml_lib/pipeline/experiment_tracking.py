@@ -186,6 +186,7 @@ class Training_run(Base):
                 last_step_loss={last_step.loss}, 
                 last_step_metrics={last_step.metrcs})"""
 
+@auto_repr("id", "training_run_id", "step", "epoch", "loss")
 class Training_step(Base):
     __tablename__ = 'steps'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -201,6 +202,11 @@ class Training_step(Base):
     metrics: Mapped[Optional[dict]] = mapped_column(JSON)
 
     checkpoints: Mapped[Checkpoint] = relationship('Checkpoint', back_populates='step')
+
+    def __str__(self):
+        checkpoint = "CHECKPOINTED" if self.checkpoints else ""
+        return f"{self.step}: epoch {self.epoch}, loss {self.loss}, {checkpoint}"
+
 
 class Test(Base):
     __tablename__ = 'tests'
