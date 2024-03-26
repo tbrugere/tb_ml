@@ -68,6 +68,8 @@ class Model(Base):
         )
 
     def load_model(self, load_latest_checkpoint: bool = True, session: Optional[Session] = None):
+        if session is None: 
+            session = Session.object_session(self)
         model_type = model_register[self.model_type]
         if self.parameters is None: 
             parameters = {}
@@ -76,9 +78,7 @@ class Model(Base):
         model = model_type(**parameters, name=self.name, db_session=session)
 
         if load_latest_checkpoint:
-            if session is None: 
-                session = Session.object_session(self)
-                if session is None: raise ValueError("need a session if load_latest_checkpoint is True, but none provided, and the object is not attached")
+            if session is None: raise ValueError("need a session if load_latest_checkpoint is True, but none provided, and the object is not attached")
             checkpoint = self.latest_checkpoint(session)
             if checkpoint is None: 
                 raise ValueError("no checkpoints found")
