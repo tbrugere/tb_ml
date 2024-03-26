@@ -77,7 +77,8 @@ class Model(Base):
 
         if load_latest_checkpoint:
             if session is None: 
-                raise ValueError("session must be provided if load_latest_checkpoint is True")
+                session = Session.object_session(self)
+                if session is None: raise ValueError("need a session if load_latest_checkpoint is True, but none provided, and the object is not attached")
             checkpoint = self.latest_checkpoint(session)
             if checkpoint is None: 
                 raise ValueError("no checkpoints found")
