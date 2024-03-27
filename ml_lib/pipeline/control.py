@@ -20,7 +20,7 @@ def get_database_engine(database_location):
     from sqlalchemy import create_engine, URL
     from sqlalchemy.orm import Session
     from ml_lib.pipeline.experiment_tracking import create_tables
-    db_engine = create_engine(URL.create("sqlite", database=database_location))
+    db_engine = create_engine(URL.create("sqlite", database=str(database_location)))
     set_sqlite_wal2(db_engine)
     create_tables(db_engine)
     return db_engine
