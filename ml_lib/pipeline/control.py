@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Self, TypeAlias, Literal
 from os import PathLike
 import functools as ft
 from pathlib import Path
+from logging import getLogger; log = getLogger("__main__")
 
 if TYPE_CHECKING:
     import torch
@@ -14,7 +15,10 @@ def set_sqlite_wal2(engine):
 
     @event.listens_for(engine, "connect")
     def enable_wal2(dbapi_connection, connection_record):
-        dbapi_connection.execute("PRAGMA journal_mode=WAL2")
+        log.info("Opening connection in WAL2 mode")
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL2")
+        cursor.close()
 
 def get_database_engine(database_location):
     from sqlalchemy import create_engine, URL
