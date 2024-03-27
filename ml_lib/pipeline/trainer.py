@@ -391,10 +391,11 @@ class Trainer():
             experiment_id=experiment.id, 
         )
 
-    def get_database_hook(self, checkpoint_interval: int = 100, commit_interval: int = 100, loss_name="loss", metrics=[] ):
+    def get_database_hook(self, loss_name="loss", metrics=[] ):
         if self.database_session is None:
             raise ValueError("cannot get database hook if session is None")
-        return DatabaseHook(database_session=self.database_session, checkpoint_interval=checkpoint_interval, commit_interval=commit_interval, loss_name=loss_name, metrics=metrics)
+        return DatabaseHook(database_session=self.database_session, checkpoint_interval=self.training_parameters.checkpoint_interval, 
+                            commit_interval=self.training_parameters.database_commit_interval, loss_name=loss_name, metrics=metrics)
 
     def get_dataloader(self, dataset: Dataset):
         return DataLoader(
