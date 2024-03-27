@@ -17,7 +17,7 @@ def set_sqlite_wal2(engine):
     def enable_wal2(dbapi_connection, connection_record):
         log.info("Opening connection in WAL2 mode")
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL2")
+        cursor.execute("PRAGMA journal_mode=WAL") #TODO WAL2???
         cursor.close()
 
 def get_database_engine(database_location):
