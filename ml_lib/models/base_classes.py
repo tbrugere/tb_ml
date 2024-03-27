@@ -94,10 +94,6 @@ class ModelMeta(type):
             if hyperparameter in reserved_names:
                 raise ValueError(f"Hyperparameter {hyperparameter} is reserved")
 
-    # @staticmethod
-    # def save_parameters_init(__init__):
-    #     @ft.wraps(__init__)
-    #     def wrapped(self, *args, **kwargs):
 
 class HasLossMixin(Generic[LossParameters]):
     """
@@ -244,6 +240,17 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         model.load_state_dict(checkpoint["model_state_dict"]) # type: ignore
         return model
 
+    def load_latest_checkpoint_from_database(self, session:Session|None):
+        if session is None: session = self.db_session
+        assert session is not None
+        db_object = self.get_database_object(session)
+        if db_object is None:
+            raise ValueError("Model not in database, cannot load checkpoint")
+        latest_checkpoint = db_object.latest_checkpoint(session)
+        if latest_checkpoint is None:
+            raise ValueError("No checkpoint found")
+        self.load_checkpoint(latest_checkpoint.checkpoint)
+
     """
     Hyperparameters
     ---------------
@@ -356,6 +363,8 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         return Database_Model.from_model(self)
 
     def get_database_object(self, session: Session|None = None, add_if_needed=False) -> Optional["Database_Model"]:
+        """Find model in database and return the corresponding Database_model.
+        if add_if_needed is true, and there is no corresponding model in the db, it will be added."""
         if session is None:
             session = self.db_session
         assert session is not None

@@ -41,7 +41,7 @@ class ModelConfig(BaseModel):
                            db_session=database_session, 
                            name=self.name)
         if load_checkpoint:
-            raise NotImplementedError
+            model.load_latest_checkpoint_from_database(database_session)
         return model
 
 
