@@ -29,7 +29,7 @@ def get_database_engine(database_location):
     create_tables(db_engine)
     return db_engine
 
-CommandType: TypeAlias = Literal["train"]
+CommandType: TypeAlias = Literal["train", "cleanup"]
 
 class CommandLine():
 
@@ -62,6 +62,8 @@ class CommandLine():
         match command:
             case "train":
                 exp.train_all(device=self.device, resume_from=self.resume)
+            case "cleanup":
+                self.cleanup_database()
             case "_":
                 raise NotImplementedError(f"Unsupported command {command}")
         
@@ -98,6 +100,21 @@ class CommandLine():
                             default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
         parser.add_argument("--resume", type=str, default="highest_step")
         return parser
+
+
+    def cleanup_database(self):
+        from ml_lib.pipeline.experiment_tracking import Checkpoint, Training_step
+        from sqlalchemy import delete, not_ , func, text
+        from datetime import timedelta
+        with self.database_session() as session:
+            query = delete(Checkpoint)\
+                    .where(not_(Checkpoint.is_last))\
+                    .where(func.now() - Checkpoint.step.step_time > timedelta(days=2) )
+            session.execute(query)
+            session.commit()
+            session.execute(text("VACUUM"))
+
+
 
 
 
