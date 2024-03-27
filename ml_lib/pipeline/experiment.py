@@ -166,10 +166,11 @@ class Experiment():
             model_num = model
         else: 
             assert isinstance(model, str)
+            model_name_list = [m.name for m in self.config.models]
             try:
-                model_num = [m.name for m in self.config.models].index(model)
+                model_num = model_name_list.index(model)
             except ValueError as e:
-                raise ValueError(f"{model} was not in the current experiment config") from e
+                raise ValueError(f"{model} was not in the current experiment config. Available models {', '.join(model_name_list)}") from e
         model_config: ModelConfig = self.config.models[model_num]
         possible_datasets = [model_config.training_set, model_config.testing_set]
         if (already_loaded:= [p for p in possible_datasets if (p in self._datasets)]):
