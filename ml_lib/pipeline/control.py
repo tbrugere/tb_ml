@@ -9,6 +9,22 @@ if TYPE_CHECKING:
 
 from ml_lib.pipeline.experiment import Experiment, ExperimentConfig
 
+def set_sqlite_wal2(engine):
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def enable_wal2(dbapi_connection, connection_record):
+        dbapi_connection.execute("PRAGMA journal_mode=WAL2")
+
+def get_database_engine(database_location):
+    from sqlalchemy import create_engine, URL
+    from sqlalchemy.orm import Session
+    from ml_lib.pipeline.experiment_tracking import create_tables
+    db_engine = create_engine(URL.create("sqlite", database=database_location))
+    set_sqlite_wal2(db_engine)
+    create_tables(db_engine)
+    return db_engine
+
 CommandType: TypeAlias = Literal["train"]
 
 class CommandLine():
@@ -46,11 +62,8 @@ class CommandLine():
                 raise NotImplementedError(f"Unsupported command {command}")
         
     def database_session(self):
-        from sqlalchemy import create_engine, URL
         from sqlalchemy.orm import Session
-        from ml_lib.pipeline.experiment_tracking import create_tables
-        db_engine = create_engine(URL.create("sqlite", database=str(self.database)))
-        create_tables(db_engine)
+        db_engine = get_database_engine(self.database)
         return Session(db_engine)
 
     @classmethod
