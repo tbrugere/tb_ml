@@ -44,6 +44,8 @@ class ModelConfig(BaseModel):
             raise NotImplementedError
         return model
 
+
+
 class DatasetConfig(BaseModel):
     type: str = Field()
     params: dict[str, Any] = Field(default={})
@@ -69,6 +71,8 @@ class ExperimentConfig(BaseModel):
     name: str|None = None
     description: str|None = None
     unsafe: bool = False #disables some checks
+
+    auto_split: dict|None = None
 
     @classmethod
     def load_yaml(cls, config_path):
@@ -126,6 +130,19 @@ class Experiment():
             if self._datasets:
                 return next(iter(self._datasets.values()))
             else: which = next(iter(self.config.datasets))
+
+        if which not in self.config.datasets and self.config.auto_split is not None:
+            from ml_lib.datasets.splitting import SplitTransform
+            try:
+                split_transform = SplitTransform(**self.config.auto_split, which=which)
+            except ValueError as e:
+                raise ValueError(f"Dataset {which} not found") from e
+            base_dataset = self.load_dataset(which="base")
+            dataset = split_transform(base_dataset)
+            if cache:
+                self._datasets[which] = dataset
+            return dataset
+
         dataset_config = self.config.datasets[which]
         dataset: Dataset = dataset_config.load_dataset(
                 dataset_register=self.dataset_register, 
