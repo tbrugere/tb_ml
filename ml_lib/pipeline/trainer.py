@@ -41,7 +41,7 @@ class Training_parameters(BaseModel):
     performance_tricks: bool = True
     """enables various optimizations. Set to false to help debugging"""
 
-    checkpoint_interval: int = 100
+    checkpoint_interval: int = 10000
     database_commit_interval: int = 100
 
 class Trainer():
