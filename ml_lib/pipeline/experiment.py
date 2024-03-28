@@ -337,6 +337,6 @@ class Experiment():
         model_conf = self.get_model_conf(i)
         has_finished = model_conf.finished_training(db_session)
         if has_finished and print_message:
-            print(f"model {model_conf.name} has already finished_training, skipping…")
+            print(f"model {model_conf.name} has already finished training, skipping…")
         return has_finished
 

@@ -26,7 +26,7 @@ def get_type_origin(t):
         return get_type_origin(t.__origin__)
 
 def advanced_type_check(value, t):
-    """Todo edit, to check for subscripted types for example"""
+    """Todo edit, to check for subscripted types for example (like list[int])"""
 
     origin = typing.get_origin(t)
     if t is None:
