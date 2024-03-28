@@ -401,6 +401,8 @@ class DatabaseHook(EndAndStepHook):
             return
         if not self.flexible:
             raise exception
+        if self.commit_tries > 10:
+            logger.warning(f"failed commiting to db for {self.commit_tries} consecutive iterations")
         self.commit_tries += 1 # makes us retry next iteration
 
 
