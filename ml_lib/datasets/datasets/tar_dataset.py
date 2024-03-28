@@ -2,6 +2,7 @@ from typing import TypeVar, IO, ClassVar
 from os import PathLike
 import tarfile
 import yaml
+from torch.utils.data import get_worker_info
 
 from ..base_classes import Dataset
 from ..datapoint import Datapoint, DictDatapoint
@@ -39,12 +40,14 @@ class TarDataset(Dataset[PointType]):
     members_list: list[str]
     
     _file: None|tarfile.TarFile = None
+    _last_known_workerid=None
 
     metadata: dict
 
     def __init__(self, tar_file: PathLike):
         self.file_path = tar_file
         self._file = None
+        self._last_known_workerid = None
         file = self.tar_file # actually initializes the _file
         members_list = file.getnames()
         if self.metadata_file in members_list:
@@ -74,6 +77,14 @@ class TarDataset(Dataset[PointType]):
 
     @property
     def tar_file(self) -> tarfile.TarFile:
+        if self._last_known_workerid is None and (worker_info:= get_worker_info()) is not None:
+            self._last_known_workerid = worker_info            
+        else:
+            worker_info = get_worker_info()
+            worker_id = None if worker_info is None else worker_info.id
+            if self._last_known_workerid != worker_id:
+                self._file = None
+                self._last_known_workerid = worker_id 
         if self._file is not None:
             return self._file
         file = tarfile.open(self.file_path)
