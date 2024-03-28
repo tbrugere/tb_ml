@@ -157,16 +157,7 @@ class Experiment():
             self._datasets[which] = dataset
         return dataset
 
-    @overload
-    def load_model(self, model: int|str, *, return_config: Literal[False] = False, load_checkpoint=False) -> Model:
-        ...
-    @overload
-    def load_model(self, model: int|str, *, return_config: Literal[True], load_checkpoint=False) -> tuple[Model, ModelConfig]:
-        ...
-    def load_model(self, model: int|str, *,  
-                   return_config=False, 
-                   load_checkpoint=False,) -> tuple[Model, ModelConfig] | Model:
-        model_num: int
+    def get_model_conf(self, model: int|str):
         if isinstance(model, int):
             model_num = model
         else: 
@@ -176,7 +167,18 @@ class Experiment():
                 model_num = model_name_list.index(model)
             except ValueError as e:
                 raise ValueError(f"{model} was not in the current experiment config. Available models {', '.join(model_name_list)}") from e
-        model_config: ModelConfig = self.config.models[model_num]
+        return self.config.models[model_num]
+    @overload
+    def load_model(self, model: int|str, *, return_config: Literal[False] = False, load_checkpoint=False) -> Model:
+        ...
+    @overload
+    def load_model(self, model: int|str, *, return_config: Literal[True], load_checkpoint=False) -> tuple[Model, ModelConfig]:
+        ...
+    def load_model(self, model: int|str, *,  
+                   return_config=False, 
+                   load_checkpoint=False,) -> tuple[Model, ModelConfig] | Model:
+
+        model_config: ModelConfig = self.get_model_conf(model)
         possible_datasets = [model_config.training_set, model_config.testing_set]
         if (already_loaded:= [p for p in possible_datasets if (p in self._datasets)]):
             which_dataset = already_loaded[0]
@@ -325,5 +327,16 @@ class Experiment():
                   skip_finished: bool =True, 
                   resume_from="highest_step"):
         for i in range(self.n_models):
+            if skip_finished and self.model_has_finished(i, print_message=True): continue
             self.train(i, device, resume_from=resume_from)
+
+
+    def model_has_finished(self, i, print_message=False):
+        db_session = self.database_session
+        if db_session is None: return False
+        model_conf = self.get_model_conf(i)
+        has_finished = model_conf.finished_training(db_session)
+        if has_finished and print_message:
+            print(f"model {model_conf.name} has already finished_training, skipping…")
+        return has_finished
 
