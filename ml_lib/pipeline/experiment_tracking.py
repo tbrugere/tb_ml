@@ -6,7 +6,7 @@ from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from sqlalchemy import create_engine, select
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
 from sqlalchemy.types import JSON, LargeBinary
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, Session
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship, Session
 
 from ml_lib.models.base_classes import Model as Model_
 from ml_lib.models import register as model_register
@@ -86,7 +86,15 @@ class Model(Base):
 
         return model
 
-    def latest_checkpoint(self, session: Session) -> Optional["Checkpoint"]:
+    def has_finished_training(self, with_checkpoint=True):
+        if with_checkpoint:
+            return self.latest_checkpoint() is not None
+        else:
+            raise NotImplementedError("What's the point of checking if the training finished but didn't checkpoint at the end ???")
+
+    def latest_checkpoint(self, session: Session|None = None) -> Optional["Checkpoint"]:
+        if session is None: session = object_session(self)
+        assert session is not None
         return session.execute(self.latest_checkpoint_query()).scalar_one_or_none()
 
     def latest_checkpoint_query(self) -> Select[tuple["Checkpoint"]]:

@@ -29,6 +29,11 @@ class ModelConfig(BaseModel):
     training_set: str = "train"
     testing_set: str = "test"
 
+    def finished_training(self, database_session: "DBSession"):
+        from .experiment_tracking import Model as DBModel
+        db_model = DBModel.get_by_name(self.name, database_session)
+        if db_model is None: return False
+        return db_model.has_finished_training()
 
     def load_model(self, additional_params = None, register=model_register, 
                    load_checkpoint=False, 
@@ -317,6 +322,7 @@ class Experiment():
         return model_
 
     def train_all(self, device:"torch.device|str" = "cpu", 
+                  skip_finished: bool =True, 
                   resume_from="highest_step"):
         for i in range(self.n_models):
             self.train(i, device, resume_from=resume_from)
