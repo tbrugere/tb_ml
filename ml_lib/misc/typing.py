@@ -29,11 +29,17 @@ def advanced_type_check(value, t):
     """Todo edit, to check for subscripted types for example"""
 
     origin = typing.get_origin(t)
+    if t is None:
+        return value is None
     if origin is None:
         return isinstance(value, t)
     if origin == typing.Annotated:
         new_t, *_ = typing.get_args(t)
         return advanced_type_check(value, new_t)
+    if origin == typing.Union:
+        for possibility in typing.get_args(t):
+            if advanced_type_check(value, possibility): return True
+        else: return False
     if origin == Literal:
         args = typing.get_args(t)
         return value in args
