@@ -2,9 +2,12 @@ from typing import Optional, TYPE_CHECKING
 
 from dataclasses import dataclass, field
 from io import StringIO
+import itertools as it
 from logging import info
 import os
 from pathlib import Path
+import sqlite3
+from time import sleep
 from logging import getLogger; logger = getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -305,8 +308,13 @@ class DatabaseHook(EndAndStepHook):
     loss_name: str = "loss"
     metrics: list[str] 
 
+    flexible: bool = True
+    commit_tries: int = 0 # the number of times we have failed to use session.commit() 
+    #(because of database locking.). If >0, we should retry next iteration
+
+
     def __init__(self, interval: int=1, *, database_session: "Session", checkpoint_interval: int = 100, commit_interval: int = 100, training_run_id: int|None=None, 
-                 loss_name="loss", metrics=[]):
+                 loss_name="loss", metrics=[], flexible: bool=True):
         super().__init__(interval, absolutely_necessary=False)
         assert checkpoint_interval%interval == 0
         assert commit_interval % interval == 0
@@ -319,6 +327,8 @@ class DatabaseHook(EndAndStepHook):
         self.loss_name = loss_name
         self.metrics = metrics
 
+        self.commit_tries = 0
+        self.flexible = flexible
 
     def hook(self):
         from ml_lib.pipeline.experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
@@ -326,8 +336,11 @@ class DatabaseHook(EndAndStepHook):
         training_finished = self.env.get("training_finished") or False
         training_step: DBTraining_step = self.get_training_step(training_finished)
         self.database_session.add(training_step)
-        if training_finished or (step + 1) % self.commit_interval == 0 :
-            self.database_session.commit()
+        if training_finished or (step + 1) % self.commit_interval == 0 or self.commit_tries > 0:
+            try:
+                self.database_session.commit()
+            except sqlite3.OperationalError: 
+                self.handle_failure_to_commit(training_finished=training_finished)
 
     def setup(self):
         # from ..experiment_tracking import Training_run as DBTraining_run
@@ -378,6 +391,18 @@ class DatabaseHook(EndAndStepHook):
             self.database_session.add(checkpoint)
 
         return training_step
+
+    def handle_failure_to_commit(self, training_finished, exception):
+        if training_finished:
+            for try_n in it.count():
+                logger.warning(f"Failed to checkpoint at the end of training because of {exception}. retrying for the {try_n}th time")
+                try: self.database_session.commit()
+                except sqlite3.OperationalError: sleep(1)
+            return
+        if not self.flexible:
+            raise exception
+        self.commit_tries += 1 # makes us retry next iteration
+
 
 
 @register

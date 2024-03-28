@@ -70,7 +70,10 @@ class CommandLine():
     def database_session(self):
         from sqlalchemy.orm import Session
         db_engine = get_database_engine(self.database)
-        return Session(db_engine)
+        # we disable autoflush because it is a pain when doing concurrency (the database gets locked all the time)
+        # now the database only gets locked when flushing, so if we only flush using commit(), we 
+        # immediately unlock it afterwards
+        return Session(db_engine, autoflush=False) 
 
     @classmethod
     def from_commandline(cls) -> Self:
