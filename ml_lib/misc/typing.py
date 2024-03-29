@@ -1,3 +1,4 @@
+import types
 import typing
 from typing import TypeVar, ParamSpec, Callable, Optional, Any, Literal
 
@@ -36,7 +37,7 @@ def advanced_type_check(value, t):
     if origin == typing.Annotated:
         new_t, *_ = typing.get_args(t)
         return advanced_type_check(value, new_t)
-    if origin == typing.Union:
+    if origin == typing.Union or origin == types.UnionType:
         for possibility in typing.get_args(t):
             if advanced_type_check(value, possibility): return True
         else: return False
