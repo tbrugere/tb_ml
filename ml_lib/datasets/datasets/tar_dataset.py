@@ -39,15 +39,13 @@ class TarDataset(Dataset[PointType]):
 
     members_list: list[str]
     
-    _file: None|tarfile.TarFile = None
-    _last_known_workerid=None
+    _file: dict[None|int, tarfile.TarFile] 
 
     metadata: dict
 
     def __init__(self, tar_file: PathLike):
         self.file_path = tar_file
-        self._file = None
-        self._last_known_workerid = None
+        self._file = {}
         file = self.tar_file # actually initializes the _file
         members_list = file.getnames()
         if self.metadata_file in members_list:
@@ -77,19 +75,17 @@ class TarDataset(Dataset[PointType]):
 
     @property
     def tar_file(self) -> tarfile.TarFile:
-        if self._last_known_workerid is None and (worker_info:= get_worker_info()) is not None:
-            self._last_known_workerid = worker_info            
-        else:
-            worker_info = get_worker_info()
-            worker_id = None if worker_info is None else worker_info.id
-            if self._last_known_workerid != worker_id:
-                self._file = None
-                self._last_known_workerid = worker_id 
-        if self._file is not None:
-            return self._file
+        workerid = self._get_workerid()
+        if workerid in self._file:
+            return self._file[workerid]
         file = tarfile.open(self.file_path)
-        self._file = file
+        self._file[workerid] = file
         return file
+
+    def _get_workerid(self):
+        worker_info = get_worker_info()
+        if worker_info is None: return None
+        return worker_info.id
 
     def __getstate__(self):
         return dict(file_path=self.file_path, 
@@ -98,17 +94,13 @@ class TarDataset(Dataset[PointType]):
     def __setstate__(self, d):
         self.file_path = d["file_path"]
         self.members_list = d["members_list"]
+        self._file = {}
         
     def __repr__(self):
         return f"{self.__class__.__name__}({str(self.file_path)})"
 
     def dataset_parameters(self):
         return {**self.metadata}
-
-    def __del__(self):
-        if self._file is not None:
-            self._file.close()
-       
 
         
 @register
