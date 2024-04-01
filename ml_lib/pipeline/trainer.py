@@ -161,7 +161,8 @@ class Trainer():
             n_epochs=self.n_epochs, 
             total_iter = self.total_iter,
             device=device, 
-            data=self.data
+            data=self.data, 
+            training_parameters=training_parameters, 
         ))
         self.global_env.record_dict(training_parameters.model_dump())
         if database is not None:
