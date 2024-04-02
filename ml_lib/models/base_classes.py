@@ -52,9 +52,9 @@ class ModelMeta(type):
 
     @staticmethod
     def use_model_context(f):
-        __tracebackhide__ = True
         @ft.wraps(f)
         def wrapped(self, *args, **kwargs):
+            __tracebackhide__ = True
             device = self.device
             ModelMeta.check_argument_devices(args, kwargs, model=self, function=f)
             with device:
