@@ -17,6 +17,9 @@ def freeze_model(m: nn.Module):
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+def count_parameters_gradient(model):
+    return sum(p.grad.numel() for p in model.parameters() if p.requires_grad)
+
 def broadcastable(*shapes: Sequence[int]):
     """
     Returns whether the given shapes are broadcastable.
@@ -35,7 +38,8 @@ def get_default_device():
 def num_parameters_tree(model: torch.nn.Module, depth=3, 
                         human_readable=True, return_total = False, 
                         indent_by=4, model_name= None, 
-                        skip_empty=False):
+                        skip_empty=False, 
+                        gradient: bool=False):
     """Warning: This function does not handle the same parameters being used by different submodules (they WILL be counted twice.) 
     Use count_parameters directly to check
 
@@ -46,6 +50,8 @@ def num_parameters_tree(model: torch.nn.Module, depth=3,
     Args:
         model: The model 
         depth: The max depth to recurse into
+        gradient: if true, then count the size of the gradients instead of the sizes of the parameters. useful for debugging. 
+                 Only defined if the gradients were computed!
 
     """
     from .basic import human_readable as hr
@@ -56,7 +62,7 @@ def num_parameters_tree(model: torch.nn.Module, depth=3,
     total = 0
     hr_string = ""
     if depth == 0:
-        n_parameters = count_parameters(model)
+        n_parameters = count_parameters(model) if not gradient else count_parameters_gradient(model)
         hr_string = f"- ({model_name}): {hr(n_parameters)}"
         total = n_parameters
     else:
