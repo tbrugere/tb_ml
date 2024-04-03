@@ -81,6 +81,9 @@ class Trainer():
     Used when resuming from a checkpoint (to get to the same point)"""
     skip_n_datapoints: int|None = None
 
+    """Whether the last iteration OOMed"""
+    oomed: bool = False
+
     def __init__(self, model: Model, 
                  data: Union[Dataset, DataLoader, Sequence],
                  training_parameters: Training_parameters, 
@@ -101,6 +104,7 @@ class Trainer():
         self.training_parameters = training_parameters
         self.epoch_n = 0
         self.iteration_n = 0
+        self.oomed = False
 
         if training_parameters.lr_scheduler is not None:
             raise NotImplemented
@@ -193,6 +197,15 @@ class Trainer():
         if resume_from is not None:
             self.resume(resume_step)
 
+    def try_step(self, batch):
+        if self.oomed: self.recover_from_oom()
+        self.oomed = False
+        try: self.step(batch) 
+        except RuntimeError as e:
+            if "out of memory" in str(e): 
+                self.oomed = True
+            else: raise
+
 
     def step(self, batch):
         self.iter_env.reset()
@@ -239,7 +252,6 @@ class Trainer():
         for step_n, batch in enumerate(self.data):
             if step_n < skip_n_steps:
                 continue
-            self.step(batch)
             self.iteration_n += 1
 
         for hook in self.epoch_hooks:
@@ -332,6 +344,12 @@ class Trainer():
             hook.set_environment(self.iter_env)
             hook.set_state()
 
+    def recover_from_oom(self):
+        import gc
+        log.warning(f"OOM, skipping iteration {self.iteration_n - 1}")
+        self.iter_env.reset()
+        gc.collect()
+        torch.cuda.empty_cache()
 
     @staticmethod
     def get_optimizer(name: str|Type[torch.optim.Optimizer], model_parameters, optimizer_arguments):
