@@ -167,6 +167,38 @@ class Checkpoint(Base):
             checkpoint=model.get_checkpoint()
         )
 
+    @classmethod
+    def from_descriptor_string(cls, string: str, session: Session):
+        model_name, *eventually_descriptor = string.split(":")
+        model = Model.get_by_name(model_name, session)
+        match eventually_descriptor:
+            case _ if model is None: return None
+            case [] | ["latest"]: return model.latest_checkpoint()
+            case [str() as max_step_number_str]:
+                max_step_number = int(max_step_number_str)
+                request = select(cls)\
+                        .where(cls.model_id == model.id)\
+                        .join(Training_step)\
+                        .where(Training_step.step <= max_step_number)\
+                        .order_by(Checkpoint.id.desc())\
+                        .limit(1)
+            case [str() as training_run_number_str, str() as max_step_number_str]:
+                training_run_number = int(training_run_number_str)
+                max_step_number = int(max_step_number_str)
+                training_run = model.training_runs[training_run_number]
+                request = select(cls)\
+                        .join(Training_step)\
+                        .where(Training_step.training_run_id == training_run.id)\
+                        .where(Training_step.step <= max_step_number)\
+                        .order_by(Checkpoint.id.desc())\
+                        .limit(1)
+            case _:
+                raise ValueError(f"invalid descriptor string {string}")
+        maybe_checkpoint = session.execute(request).one_or_none()
+        if maybe_checkpoint is None: return maybe_checkpoint
+        checkpoint, = maybe_checkpoint
+        return checkpoint
+
     def __repr__(self):
         return f"{self.__class__.__name__}(model={self.model.name}, step={self.step.step})"
 

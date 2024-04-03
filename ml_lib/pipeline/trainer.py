@@ -44,6 +44,14 @@ class Training_parameters(BaseModel):
     checkpoint_interval: int = 10000
     database_commit_interval: int = 100
 
+    """other model's checkpoint to start from
+    in the form 
+    - model_name
+    - model_name:max_step_n
+    - model_name:run_n:max_step_n
+    """
+    start_from_other: str|None = None
+
 class Trainer():
 
 
@@ -194,8 +202,12 @@ class Trainer():
         self.end_hooks = end_hooks
 
         ############## Eventually resume 
+        if training_parameters.start_from_other is not None:
+            self.load_checkpoint(training_parameters.start_from_other)
+
         if resume_from is not None:
             self.resume(resume_step)
+
 
     def try_step(self, batch):
         if self.oomed: self.recover_from_oom()
@@ -299,6 +311,15 @@ class Trainer():
                                  for i in seq)
             case _:
                 raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
+
+    def load_checkpoint(self, checkpoint_str):
+        from ml_lib.pipeline.experiment_tracking import Checkpoint
+        assert self.database_session is not None, "cannot load checkpoint with no database session"
+        checkpoint = Checkpoint.from_descriptor_string(checkpoint_str, self.database_session)
+        if checkpoint is None: 
+            log.warn(f'Could not load checkpoint "{checkpoint_str}": not found')
+            return
+        self.model.load_checkpoint(checkpoint.checkpoint)
 
     def resume(self, step: "int|DBTraining_step|None"):
         session = self.database_session
