@@ -132,7 +132,7 @@ class Model(Base):
             tr_info_str = "\n" + indent(tr_info_str, prefix="   ")
         else: tr_info_str = ""
 
-        return f"{status_icon} — {name}"
+        return f"{status_icon} — {name}{tr_info_str}"
 
 
 class Checkpoint(Base):
