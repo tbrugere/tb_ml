@@ -38,10 +38,12 @@ class CommandLine():
     commands: list[str]
     database: Path
     resume: str
+    only_model: str|int|None = None
 
     def __init__(self, experiment: PathLike, commands, *,
                  device: "str|torch.device|None"=None, 
-                 database: PathLike, resume:str): 
+                 database: PathLike, resume:str, 
+                 only_model: str|int|None = None): 
         import torch
         self.experiment_config=Path(experiment)
         if device is None:
@@ -50,6 +52,11 @@ class CommandLine():
         self.commands = commands
         self.database = Path(database)
         self.resume = resume
+        try:
+            only_model_ = int(only_model)#type: ignore
+            only_model = only_model_
+        except ValueError: pass
+        self.only_model = only_model
         
     def run(self):
         with self.database_session() as db_session:
@@ -58,10 +65,13 @@ class CommandLine():
             for command in self.commands:
                 self.run_command(exp, command)#type: ignore
 
-    def run_command(self, exp, command: CommandType):
+    def run_command(self, exp: Experiment, command: CommandType):
         match command:
             case "train":
-                exp.train_all(device=self.device, resume_from=self.resume)
+                if self.only_model is None:
+                    exp.train_all(device=self.device, resume_from=self.resume)
+                else: 
+                    exp.train(self.only_model, device=self.device, resume_from=self.resume)
             case "cleanup":
                 self.cleanup_database()
             case "status":
@@ -85,7 +95,8 @@ class CommandLine():
                    commands=args.command, 
                    device=args.device, 
                    database=args.database, 
-                   resume=args.resume
+                   resume=args.resume, 
+                   only_model = args.only_model
                    )
 
     
@@ -104,6 +115,7 @@ class CommandLine():
         parser.add_argument("--database", type=Path, 
                             default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
         parser.add_argument("--resume", type=str, default="highest_step")
+        parser.add_argument("--only-model", type=str, default=None)
         return parser
 
 
