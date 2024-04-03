@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+from textwrap import dedent
+from typing import Optional, TYPE_CHECKING, Iterable, TypeVar, Protocol, Literal, overload
 
 from dataclasses import dataclass, field
 from io import StringIO
@@ -8,13 +9,18 @@ import os
 from pathlib import Path
 import sqlite3
 from time import sleep
-from logging import getLogger; logger = getLogger(__name__)
+from logging import getLogger
+from torch.nn.modules.conv import F
+
+from ml_lib.misc.basic import fill_default
+from ml_lib.misc.data_structures import NotSpecified; logger = getLogger(__name__)
 
 if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
     from sqlalchemy.orm import Session
     from ml_lib.pipeline.experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
+    from trello import TrelloClient, List as TrelloList, Board as TrelloBoard, Card as TrelloCard, Checklist as TrelloChecklist
 
 
 from torch.optim import Optimizer
@@ -409,6 +415,8 @@ class DatabaseHook(EndAndStepHook):
 
 @register
 class SlackHook(EndHook):
+    """Sends you a slack message when a model finished training
+    Sadly, does'nt work for now, i can't manage to figure out the slack API"""
     token: str
     channel: str
 
@@ -456,6 +464,123 @@ class SlackHook(EndHook):
             "text": f"Training finished for {train_info}"
         })
 
-        
 
+class _HasName(Protocol):
+    name: str
+T_HasName = TypeVar("T_HasName", bound=_HasName)
+
+@register
+class TrelloHook(EndHook):
+    """Updates trello cards. Also doubles as a notification system by adding trello events."""
+
+    api_key: str
+    token: str
+
+    client: "TrelloClient"
+
+    board: "TrelloBoard"
+    card: "TrelloCard"|None = None
+    ongoing_list_name: str
+    finished_list_name: str
+
+    ongoing_list: "TrelloList"
+    finished_list: "TrelloList"
+
+
+    def __init__(self, *, 
+                 api_key: str|NotSpecified=NotSpecified(), 
+                 token: str|NotSpecified=NotSpecified(), 
+                 board:str|NotSpecified= NotSpecified(), 
+                 ongoing_list: str="Running experiments", finished_list: str="Finished Running"):
+        from trello import TrelloClient
+        self.api_key = fill_default(api_key, env_variable="TRELLO_API_KEY", name="trello api key")
+        self.token = fill_default(token, env_variable="TRELLO_TOKEN", name="trello token")
+        board_name = fill_default(board, env_variable="TRELLO_BOARD", name="trello board")
+
+        self.client = TrelloClient(api_key=self.api_key, token=self.token)
+        self.board = self.find_name(self.client.list_boards(), board_name)
+
+        self.ongoing_list_name = ongoing_list
+        self.ongoing_list = self.get_list(ongoing_list)
+        self.finished_list_name = finished_list
+        self.finished_list = self.get_list(finished_list)
+        self.card = None
+
+    def setup(self):
+        model_card = self.find_model_card()
+        if model_card is None: model_card = self.make_model_card()
+        self.card = model_card
+
+    def get_list(self, name) -> "TrelloList":
+        return self.find_name(self.board.list_lists(), name)
+
+    def find_model_card(self,):
+        model_name = self.env.model.model_name
+        for l in [self.finished_list, self.ongoing_list]:
+            model_card = self.find_name(l.list_cards_iter(), model_name)
+            if model_card: return model_card
+        return None
+
+    def make_model_card(self, ongoing=True):
+        model = self.env.model
+        model_name = model.model_name
+        training_parameters = self.env.training_parameters
+
+        model_description= dedent(f"""
+        ## Model parameters
+        ```
+        {str(model)}
+        ```
+        ## Training parameters
+        ```
+        {str(training_parameters)}
+        ```
+        """)
+        if ongoing: l = self.ongoing_list
+        else: l = self.finished_list
+
+        card = l.add_card(
+            name = model_name, 
+            desc = model_description, 
+        )
+
+        _ = card.add_checklist("status", ["Train", "Evaluate"])
+        return card
+
+    def get_status_checklist(self,  card: "TrelloCard", add=True) -> "TrelloChecklist|None":
+        status_checklist = self.find_name(card.checklists, "status", allowNone=True)
+        if status_checklist is not None:
+            return status_checklist
+        if add:
+            status_checklist = card.add_checklist("status", ["Train", "Evaluate"])
+        return status_checklist
+
+    def hook(self):
+        card = self.card
+        assert card is not None
+        checklist = self.get_status_checklist(card, add=True)
+        assert checklist is not None
+        checklist.set_checklist_item("Train", checked=True)
+        card.change_list(self.finished_list.id)
+
+        
+    @overload
+    @staticmethod
+    def find_name(l: Iterable[T_HasName], name: str, allowNone:Literal[False]=False) -> T_HasName:
+        ...
+
+    @overload
+    @staticmethod
+    def find_name(l: Iterable[T_HasName], name: str, allowNone:Literal[True]) -> T_HasName|None:
+        ...
+
+    @staticmethod
+    def find_name(l: Iterable[T_HasName], name: str, allowNone=False) -> T_HasName|None:
+        """takes a list of elements with """
+        for elt in l:
+            if elt.name == name:#type:ignore
+                return elt
+        if not allowNone:
+            raise IndexError(f"didn't find {name} in {l}")
+        return None
 
