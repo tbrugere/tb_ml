@@ -1,7 +1,7 @@
 """random stuff that should be in the standard lib
 """
 
-from typing import Sequence, Final, Iterable, TypeVar, overload, TypeVarTuple, Unpack
+from typing import Sequence, Final, Iterable, TypeVar, overload, TypeVarTuple, Unpack, Callable, TypeAlias
 
 from contextlib import contextmanager
 import functools as ft
@@ -9,10 +9,13 @@ import os
 from math import log
 import warnings
 from pathlib import Path
+from .data_structures import NotSpecified
 
 T = TypeVar("T")
 U = TypeVar("U")
 Tuple_T = TypeVarTuple("Tuple_T")
+
+Factory: TypeAlias = Callable[[], T]
 
 @contextmanager
 def cwd(path):
@@ -125,3 +128,47 @@ def eventually_tuple(*arguments):
         arg, = arguments
         return arg
     return tuple(arguments)
+
+@overload
+def fill_default(value: T|NotSpecified, *, 
+                 env_variable: str|NotSpecified=NotSpecified(), 
+                 default_value: T|NotSpecified=NotSpecified(),
+                 default_factory: Factory[T]|NotSpecified=NotSpecified(),
+                 name: str|None = None, 
+                 type_convert: Callable[[str], T] 
+                 ) -> T:
+    ...
+
+@overload 
+def fill_default(value: T|NotSpecified, *, 
+                 env_variable: str|NotSpecified=NotSpecified(), 
+                 default_value: T|NotSpecified=NotSpecified(),
+                 default_factory: Factory[T]|NotSpecified=NotSpecified(),
+                 name: str|None = None, 
+                 type_convert: NotSpecified = NotSpecified()
+                 ) -> T|str:
+    ...
+
+
+def fill_default(value: T|NotSpecified, *, 
+                 env_variable: str|NotSpecified=NotSpecified(), 
+                 default_value: T|NotSpecified=NotSpecified(),
+                 default_factory: Factory[T]|NotSpecified=NotSpecified(),
+                 name: str|None = None, 
+                 type_convert: Callable[[str], T]|NotSpecified= NotSpecified(), 
+                 ) -> T|str:
+    if not isinstance(value, NotSpecified):
+        return value
+    if not isinstance(env_variable, NotSpecified)\
+            and env_variable in os.environ:
+        val =  os.environ[env_variable]
+        if isinstance(type_convert, NotSpecified):
+            converted_val = val
+        else: converted_val = type_convert(val)
+        return converted_val
+    if not isinstance(default_value, NotSpecified):
+        return default_value
+    if not isinstance(default_factory, NotSpecified):
+        return default_factory()
+
+    raise ValueError(f"Couldn't infer default value for {name}, environment variable {env_variable} is not set")

@@ -56,7 +56,7 @@ class CommandLine():
             exp = Experiment.from_yaml(self.experiment_config, 
                                        database_session=db_session)
             for command in self.commands:
-                self.run_command(exp, command)
+                self.run_command(exp, command)#type: ignore
 
     def run_command(self, exp, command: CommandType):
         match command:
