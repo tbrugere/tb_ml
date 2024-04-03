@@ -340,3 +340,17 @@ class Experiment():
             print(f"model {model_conf.name} has already finished training, skipping…")
         return has_finished
 
+    def print_status(self, long=True):
+        from .experiment_tracking import Model as DBModel
+        db_session = self.database_session
+        if db_session is None: 
+            raise ValueError("Tried to print status without database")
+        for i in range(self.n_models):
+            model_conf = self.get_model_conf(i)
+            database_model = DBModel.get_by_name(model_conf.name, session=db_session)
+            model_str = DBModel.get_info_str(database_model, name=model_conf.name, long=long)
+            print(model_str)
+
+
+        
+

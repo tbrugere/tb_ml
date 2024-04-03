@@ -2,6 +2,7 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
+from textwrap import indent
 from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from sqlalchemy import create_engine, select
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
@@ -104,7 +105,6 @@ class Model(Base):
                 .order_by(Checkpoint.id.desc())\
                 .limit(1)
 
-
     @classmethod
     def get_by_name(cls, name: str,  session: Session) -> Self|None:
         query = select(cls).where(cls.name == name)
@@ -112,6 +112,28 @@ class Model(Base):
         if model_or_none is None: return None
         model, = model_or_none
         return model
+
+    def get_info_str(self: Self|None=None, name:str|None=None, long=True):
+        if self is None:
+            return f"✗ — {name}"
+        name = name or self.name
+        tr_info_strs = [training_run.get_info_str 
+                        for training_run in self.training_runs]
+        started_training = len(tr_info_strs) != 0
+        finished_training = self.has_finished_training()
+        match (started_training, finished_training):
+            case (_, True): status_icon = "✓"
+            case (True, False): status_icon = "…"
+            case (False, False): status_icon = "✗"
+            case something_else: assert_never(something_else)
+
+        if long:
+            tr_info_str = "\n—".join(f"- {i}" for i in tr_info_strs)
+            tr_info_str = "\n" + indent(tr_info_str, prefix="   ")
+        else: tr_info_str = ""
+
+        return f"{status_icon} — {name}"
+
 
 class Checkpoint(Base):
     __tablename__ = 'checkpoints'
@@ -194,7 +216,6 @@ class Training_run(Base):
         return time_start, time_end
             
     def get_info_str(self):
-        from io import StringIO
         name_info = f"training run {self.id}"
         time_start, time_end = self.time_span()
         if time_start is None:

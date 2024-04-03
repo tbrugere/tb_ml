@@ -29,7 +29,7 @@ def get_database_engine(database_location):
     create_tables(db_engine)
     return db_engine
 
-CommandType: TypeAlias = Literal["train", "cleanup"]
+CommandType: TypeAlias = Literal["train", "cleanup", "status"]
 
 class CommandLine():
 
@@ -64,6 +64,8 @@ class CommandLine():
                 exp.train_all(device=self.device, resume_from=self.resume)
             case "cleanup":
                 self.cleanup_database()
+            case "status":
+                exp.print_status()
             case "_":
                 raise NotImplementedError(f"Unsupported command {command}")
         
@@ -116,6 +118,7 @@ class CommandLine():
             session.execute(query)
             session.commit()
             session.execute(text("VACUUM"))
+
 
 
 
