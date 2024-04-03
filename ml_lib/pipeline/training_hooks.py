@@ -479,7 +479,7 @@ class TrelloHook(EndHook):
     client: "TrelloClient"
 
     board: "TrelloBoard"
-    card: "TrelloCard"|None = None
+    card: "TrelloCard|None" = None
     ongoing_list_name: str
     finished_list_name: str
 
