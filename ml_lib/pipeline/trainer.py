@@ -20,6 +20,13 @@ from ..environment import Environment, HierarchicEnvironment
 from ..register import Loader
 from .registers import loss_register, training_hook_register
 
+def try_tqdm(total: int, desc:str):
+    try: from tqdm.auto import tqdm
+    except ImportError: 
+        log.info(desc)
+        return range(total)
+    else: return tqdm(range(total), desc=desc)
+
 class Training_parameters(BaseModel):
     n_epochs: int = 1
     optimizer: str = "Adam"
@@ -259,10 +266,14 @@ class Trainer():
 
         if self.skip_n_datapoints is not None:
             skip_n_steps = self.skip_n_datapoints
+            skip_pbar = iter(try_tqdm(skip_n_steps, desc=f"skipping {skip_n_steps} datapoints"))
             self.skip_n_datapoints = None
-        else: skip_n_steps = 0
+        else: 
+            skip_n_steps = 0
+            skip_pbar = iter(range(0))
         for step_n, batch in enumerate(self.data):
             if step_n < skip_n_steps:
+                next(skip_pbar)
                 continue
             self.iteration_n += 1
 
