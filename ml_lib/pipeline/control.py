@@ -66,7 +66,7 @@ class CommandLine():
         try:
             only_model_ = int(only_model)#type: ignore
             only_model = only_model_
-        except ValueError: pass
+        except: pass
         self.only_model = only_model
         self.log_level = log_level
         self.profile = profile
@@ -164,8 +164,10 @@ class CommandLine():
             query = delete(Checkpoint)\
                     .where(not_(Checkpoint.is_last))\
                     .where(Checkpoint.step_id.in_(old_enough_steps))
+            log.info("executing delete query...")
             session.execute(query, execution_options={"synchronize_session": False})
             session.commit()
+            log.info("vacuuming database...")
             session.execute(text("VACUUM"))
 
 
