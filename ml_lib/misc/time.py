@@ -3,7 +3,7 @@
 from typing import Callable
 from functools import wraps
 from inspect import signature
-from logging import info
+from logging import info, getLogger; default_logger=getLogger()
 from time import perf_counter
 
 old_time = perf_counter()
@@ -29,8 +29,8 @@ def debug_time(out_string=None, log=info):
     log(f"{out_string}: time elapsed {new_time - old_time}s")
     old_time = new_time
 
-def time_profile(function, arguments=None):
-    """Makes a function print (to info channel) the time elapsed during its execution if is_debug is true
+def time_profile(function, arguments=None, log=info):
+    """Makes a function print (to info channel or to the given logging function) the time elapsed during its execution if is_debug is true
     warning: the value of is_debug is only checked at the time the decorator is called !
 
     Args:
@@ -60,7 +60,7 @@ def time_profile(function, arguments=None):
         t0 = perf_counter()
         ret_val = function(*args, **kwargs)
         delta_t = perf_counter() - t0
-        info(f"{function.__name__}: time elapsed {delta_t}")
+        log(f"{function.__name__}: time elapsed {delta_t}")
         function_times[function].append((delta_t, argument_values))
         return ret_val
     
