@@ -1,6 +1,6 @@
 """simple profiling stuff
 """
-from typing import Callable
+from typing import Callable, TypeAlias
 from functools import wraps
 from inspect import signature
 from logging import info, getLogger; default_logger=getLogger()
@@ -9,8 +9,10 @@ from time import perf_counter
 old_time = perf_counter()
 function_times: dict[Callable, list[tuple[float, dict]]] = dict()
 
+LogFunction: TypeAlias = Callable[[str], None]
 
-def debug_time(out_string=None, log=info):
+
+def debug_time(out_string=None, log: LogFunction=info):
     """only works if is_debug is True
     If out_string is true, prints out_string as well as the time elapsed since the last call to debug_time
 
@@ -29,7 +31,7 @@ def debug_time(out_string=None, log=info):
     log(f"{out_string}: time elapsed {new_time - old_time}s")
     old_time = new_time
 
-def time_profile(function, arguments=None, log=info):
+def time_profile(function, arguments=None, log: LogFunction=info):
     """Makes a function print (to info channel or to the given logging function) the time elapsed during its execution if is_debug is true
     warning: the value of is_debug is only checked at the time the decorator is called !
 
