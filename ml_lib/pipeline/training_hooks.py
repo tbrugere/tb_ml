@@ -1,3 +1,4 @@
+from re import T
 from textwrap import dedent
 from typing import Optional, TYPE_CHECKING, Iterable, TypeVar, Protocol, Literal, overload
 
@@ -517,7 +518,7 @@ class TrelloHook(EndHook):
     def find_model_card(self,):
         model_name = self.env.model.model_name
         for l in [self.finished_list, self.ongoing_list]:
-            model_card = self.find_name(l.list_cards_iter(), model_name)
+            model_card = self.find_name(l.list_cards_iter(), model_name, allowNone=True)
             if model_card: return model_card
         return None
 
