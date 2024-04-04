@@ -339,6 +339,7 @@ class DatabaseHook(EndAndStepHook):
 
     def hook(self):
         from ml_lib.pipeline.experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
+        from sqlalchemy.exc import OperationalError
         step: int = self.env.iteration
         training_finished = self.env.get("training_finished") or False
         training_step: DBTraining_step = self.get_training_step(training_finished)
@@ -346,7 +347,7 @@ class DatabaseHook(EndAndStepHook):
         if training_finished or (step + 1) % self.commit_interval == 0 or self.commit_tries > 0:
             try:
                 self.database_session.commit()
-            except sqlite3.OperationalError as exception: 
+            except (sqlite3.OperationalError, OperationalError) as exception: 
                 self.handle_failure_to_commit(training_finished=training_finished, exception=exception)
 
     def setup(self):
