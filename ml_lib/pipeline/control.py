@@ -155,12 +155,12 @@ class CommandLine():
 
     def cleanup_database(self):
         from ml_lib.pipeline.experiment_tracking import Checkpoint, Training_step
-        from sqlalchemy import delete, not_ , func, text
+        from sqlalchemy import delete, not_ , func, text, select
         from datetime import timedelta
         with self.database_session() as session:
             query = delete(Checkpoint)\
                     .where(not_(Checkpoint.is_last))\
-                    .where(func.now() - Checkpoint.step.step_time > timedelta(days=2) )
+                    .where(func.now() - Training_step.step_time > timedelta(days=2) )
             session.execute(query)
             session.commit()
             session.execute(text("VACUUM"))
