@@ -158,9 +158,12 @@ class CommandLine():
         from sqlalchemy import delete, not_ , func, text, select
         from datetime import timedelta
         with self.database_session() as session:
+            old_enough_steps = select(Training_step.id)\
+                .where(func.now() - Training_step.step_time > timedelta(days=2))
+
             query = delete(Checkpoint)\
                     .where(not_(Checkpoint.is_last))\
-                    .where(func.now() - Training_step.step_time > timedelta(days=2) )
+                    .where(Checkpoint.step_id.in_(old_enough_steps))
             session.execute(query, execution_options={"synchronize_session": False})
             session.commit()
             session.execute(text("VACUUM"))
