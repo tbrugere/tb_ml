@@ -346,8 +346,8 @@ class DatabaseHook(EndAndStepHook):
         if training_finished or (step + 1) % self.commit_interval == 0 or self.commit_tries > 0:
             try:
                 self.database_session.commit()
-            except sqlite3.OperationalError: 
-                self.handle_failure_to_commit(training_finished=training_finished)
+            except sqlite3.OperationalError as exception: 
+                self.handle_failure_to_commit(training_finished=training_finished, exception=exception)
 
     def setup(self):
         # from ..experiment_tracking import Training_run as DBTraining_run
