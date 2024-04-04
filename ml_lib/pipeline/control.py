@@ -161,7 +161,7 @@ class CommandLine():
             query = delete(Checkpoint)\
                     .where(not_(Checkpoint.is_last))\
                     .where(func.now() - Training_step.step_time > timedelta(days=2) )
-            session.execute(query)
+            session.execute(query, execution_options={"synchronize_session": False})
             session.commit()
             session.execute(text("VACUUM"))
 
