@@ -275,6 +275,7 @@ class Trainer():
             if step_n < skip_n_steps:
                 next(skip_pbar)
                 continue
+            self.try_step(batch)
             self.iteration_n += 1
 
         for hook in self.epoch_hooks:
