@@ -4,6 +4,7 @@ import functools as ft
 import itertools as it # pyright: ignore
 from inspect import signature
 
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -68,9 +69,14 @@ class MultiInputLinear(nn.Module):
     """
 
     linears: nn.ModuleList
+    bias: nn.Parameter|None = None
 
-    def __init__(self, input_dims: Sequence[int], output_dim: int, bias=True):
+    def __init__(self, input_dims: Sequence[int], output_dim: int, bias=True, singlebias=False):
         super().__init__()
+        if bias and singlebias:
+            self.bias = nn.Parameter(Tensor(output_dim))
+            nn.init.xavier_normal(self.bias)
+            bias = False
         self.linears = nn.ModuleList([
             nn.Linear(input_dim, output_dim, bias=bias) for input_dim in input_dims
         ])
@@ -81,4 +87,28 @@ class MultiInputLinear(nn.Module):
         :return: a tensor of shape (batch_size, output_dim)
         """
         assert len(inputs) == len(self.linears)
-        return sum(linear(input) for linear, input in zip(self.linears, inputs))
+        res = sum(linear(input) for linear, input in zip(self.linears, inputs))
+        if self.bias is not None:
+            res = res + self.bias
+        return res
+
+class MultiInputMLP(nn.Module):
+    """
+    a MLP that takes several inputs (and "concatenates" them with a MultiInputLinear)
+    """
+
+    first_layer: MultiInputLinear
+    subsequent_layers: MLP
+
+    def __init__(self, input_dims: Sequence[int], *layers: int):
+        assert len(layers) > 1
+        self.first_layer = MultiInputLinear(input_dims=input_dims, 
+                                            output_dim=layers[0], 
+                                            bias=True, 
+                                            singlebias=True)
+        self.subsequent_layers = MLP(*layers)
+
+    def forward(self, *inputs):
+        y = self.first_layer(*inputs)
+        return self.subsequent_layers(y)
+
