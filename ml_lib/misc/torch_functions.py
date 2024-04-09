@@ -86,3 +86,22 @@ def num_parameters_tree(model: torch.nn.Module, depth=3,
 
     return eventually_tuple(hr_string, *eventually_return_total)
 
+
+def move_batch_to(batch, device, non_blocking=False, ignore_failure=False):
+    match batch:
+        case batch if hasattr(batch, "to"):
+            return batch.to(device, non_blocking=non_blocking)
+        case batch if hasattr(batch, "_asdict"):
+            t_ = type(batch)
+            return t_(**{key: value.to(device, non_blocking=non_blocking) 
+                         for key, value in batch._asdict().items()})
+        case dict():
+            return {key: value.to(device, non_blocking=non_blocking) 
+                    for key, value in batch.items()}
+        case _ if isinstance(batch, torch.Tensor):
+            return batch.to(device, non_blocking=non_blocking)
+        case (*seq,):
+            return type(seq)(i.to(device, non_blocking=non_blocking) 
+                             for i in seq)
+        case _ if not ignore_failure:
+            raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
