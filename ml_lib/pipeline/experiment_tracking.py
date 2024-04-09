@@ -2,11 +2,10 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
-from typing import TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from dataclasses import dataclass, field
 from datetime import datetime
 from textwrap import indent
-from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from sqlalchemy import create_engine, select
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
 from sqlalchemy.types import JSON, LargeBinary
@@ -389,7 +388,7 @@ class NonBlockingStep():
     step: int = field()
     epoch: int = field()
     step_time: datetime = field()
-    loss = field() #type: torch.Tensor
+    loss: Any = field() #type: torch.Tensor
     metrics: dict = field(default_factory=dict)
     checkpoint: CacheCheckpoint|None = field(default=None)
 
