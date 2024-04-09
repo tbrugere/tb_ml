@@ -37,6 +37,7 @@ class ModelConfig(BaseModel):
 
     def load_model(self, additional_params = None, register=model_register, 
                    load_checkpoint=False, 
+                   allow_nonfinal_checkpoint=False, 
                    database_session: "DBSession|None" = None
                    ):
         additional_params = additional_params or dict()
@@ -46,7 +47,8 @@ class ModelConfig(BaseModel):
                            db_session=database_session, 
                            name=self.name)
         if load_checkpoint:
-            model.load_latest_checkpoint_from_database(database_session)
+            model.load_latest_checkpoint_from_database(database_session, 
+                                                       allow_nonfinal_checkpoint=allow_nonfinal_checkpoint)
         return model
 
 
