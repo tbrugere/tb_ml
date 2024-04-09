@@ -2,12 +2,20 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
+from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from datetime import datetime
 from textwrap import indent
 from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from sqlalchemy import create_engine, select
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
 from sqlalchemy.types import JSON, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship, Session
+from ml_lib.misc.data_structures import Maybe
+from ml_lib.misc.torch_functions import move_batch_to
+
+if TYPE_CHECKING:
+    import torch
 
 from ml_lib.models.base_classes import Model as Model_
 from ml_lib.models import register as model_register
@@ -68,7 +76,10 @@ class Model(Base):
             parameters=model.get_hyperparameters(serializable=True)
         )
 
-    def load_model(self, load_latest_checkpoint: bool = True, session: Optional[Session] = None):
+    def load_model(self, 
+                   load_latest_checkpoint: bool = True, 
+                   allow_nonfinal_checkpoint: bool = False, 
+                   session: Optional[Session] = None):
         if session is None: 
             session = Session.object_session(self)
         model_type = model_register[self.model_type]
@@ -80,7 +91,8 @@ class Model(Base):
 
         if load_latest_checkpoint:
             if session is None: raise ValueError("need a session if load_latest_checkpoint is True, but none provided, and the object is not attached")
-            checkpoint = self.latest_checkpoint(session)
+            checkpoint = self.latest_checkpoint(session, 
+                                                allow_nonfinal_checkpoint=allow_nonfinal_checkpoint)
             if checkpoint is None: 
                 raise ValueError("no checkpoints found")
             model.load_checkpoint(checkpoint.checkpoint)
@@ -93,17 +105,20 @@ class Model(Base):
         else:
             raise NotImplementedError("What's the point of checking if the training finished but didn't checkpoint at the end ???")
 
-    def latest_checkpoint(self, session: Session|None = None) -> Optional["Checkpoint"]:
+    def latest_checkpoint(self, session: Session|None = None,*,  allow_nonfinal_checkpoint:bool=False) -> Optional["Checkpoint"]:
         if session is None: session = object_session(self)
         assert session is not None
-        return session.execute(self.latest_checkpoint_query()).scalar_one_or_none()
+        return session.execute(self.latest_checkpoint_query(allow_nonfinal_checkpoint)).scalar_one_or_none()
 
-    def latest_checkpoint_query(self) -> Select[tuple["Checkpoint"]]:
-        return select(Checkpoint)\
-                .where(Checkpoint.model_id == self.id)\
-                .where(Checkpoint.is_last == True)\
+    def latest_checkpoint_query(self, allow_nonfinal_checkpoint: bool=False) -> Select[tuple["Checkpoint"]]:
+        query =  select(Checkpoint)\
+                .where(Checkpoint.model_id == self.id)
+        if not allow_nonfinal_checkpoint:
+            query = query.where(Checkpoint.is_last == True)
+        query = query\
                 .order_by(Checkpoint.id.desc())\
                 .limit(1)
+        return query
 
     @classmethod
     def get_by_name(cls, name: str,  session: Session) -> Self|None:
@@ -349,3 +364,105 @@ class Experiment(Base):
     training_runs: Mapped[Training_run] = relationship('Training_run',) 
                                                        # secondary='experiment_training_runs', 
                                                        # back_populates='experiments')
+
+############################################################
+##### non-synchronizing cache for step information. 
+############################################################
+
+@dataclass
+class CacheCheckpoint():
+    checkpoint: bytes 
+    model_id: int
+    is_last: bool = False
+
+    def to_database_object(self, step):
+        return Checkpoint(
+            checkpoint=self.checkpoint, 
+            is_last=self.is_last,
+            model_id=self.model_id, 
+            step=step
+                )
+
+@dataclass
+class NonBlockingStep():
+    training_run_id: int = field()
+    step: int = field()
+    epoch: int = field()
+    step_time: datetime = field()
+    loss = field() #type: torch.Tensor
+    metrics: dict = field(default_factory=dict)
+    checkpoint: CacheCheckpoint|None = field(default=None)
+
+    def __post_init__(self):
+        self.loss = self.loss.to("cpu", non_blocking=True)
+        self.metrics = {i: move_batch_to(v, device="cpu", non_blocking=True, ignore_failure=True) 
+                        for i, v in self.metrics.items()}
+
+    def to_database_objects(self, model_id:int):
+        step = Training_step(
+                training_run_id=self.training_run_id,
+                step = self.step, 
+                epoch=self.epoch,
+                step_time=self.step_time, 
+                loss = self.loss.item(), 
+                metrics = self.itemize_metrics(self.metrics)
+                )
+
+        checkpoint = Maybe()
+        if self.checkpoint is not None:
+            checkpoint = Maybe(self.checkpoint.to_database_object(step))
+        return step, *checkpoint
+     
+    @staticmethod
+    def itemize_metrics(metrics: dict):
+        d = dict()
+        for k, v in metrics.items():
+            if hasattr(v, "item"):
+                v = v.item()
+            d[k] = v
+        return d
+
+class NonBlockingStepCache():
+    cached_values: list[NonBlockingStep] = []
+    model_id: int 
+
+    def __init__(self, model_id: int) -> None:
+        self.cached_values = []
+        self.model_id = model_id
+
+    def __iter__(self):
+        for nbs in self.cached_values:
+            yield from nbs.to_database_objects(self.model_id)
+
+    def add(self, step: NonBlockingStep):
+        self.cached_values.append(step)
+
+    def empty_into_db(self, session: Session, allow_failure: bool=True):
+        """
+        Tries to empty itself into the database.
+        In case of failure, rolls back the changes on DB and keeps the values in cache.
+        then 
+        if succeded: returns True
+        if failed and allow_failure is False, reraises the error
+        if failed and allow_failure is False, returns false
+        """
+        import sqlite3
+        from sqlalchemy.exc import OperationalError
+        try:
+            for item in self:
+                session.add(item)
+            session.commit()
+        except (sqlite3.OperationalError, OperationalError) as exception:
+            session.rollback()
+            if not allow_failure:
+                raise
+            return False
+        else:
+            self.empty_cache()
+            return True
+
+    def empty_cache(self):
+        import gc
+        self.cached_values = []
+        gc.collect()
+
