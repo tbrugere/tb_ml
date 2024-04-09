@@ -1,7 +1,7 @@
 
 from .combinators import ResidualShortcut, Repeat
 from .attention import TransformerBlock
-from .basic import MLP, MultiInputLinear
+from .basic import MLP, MultiInputLinear, MultiInputMLP
 
 __all__ = [
     "ResidualShortcut",
@@ -9,5 +9,6 @@ __all__ = [
     "TransformerBlock",
     "MLP",
     "MultiInputLinear", 
+    "MultiInputMLP", 
 ]
 
