@@ -26,11 +26,10 @@ def set_sqlite_wal2(engine):
         cursor.close()
 
     @event.listens_for(engine, "close")
-    def _(dbapi_connection, connection_record)
+    def _(dbapi_connection, connection_record):
         log.info("Connection was closed. running pragma optimize")
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA optimize;") 
-        cursor.close()
+        dbapi_connection.execute("PRAGMA optimize;") 
+        dbapi_connection.execute("PRAGMA incremental_vacuum;") 
 
 
 def get_database_engine(database_location):
