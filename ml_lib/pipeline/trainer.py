@@ -4,6 +4,7 @@ from typing import Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_n
 from pydantic import BaseModel, Field
 
 from logging import getLogger; log = getLogger(__name__)
+
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session as DBSession
     from .experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
@@ -12,6 +13,7 @@ import torch
 from torch import nn, optim
 from torch.utils.data import DataLoader
 
+from ml_lib.misc.torch_functions import move_batch_to
 from ..models import load_model
 from ..models.base_classes import Model
 from ..datasets import load_dataset, Dataset
@@ -233,7 +235,7 @@ class Trainer():
         ))
         self.model.train()
 
-        batch = self.move_batch_to(batch, self.device, 
+        batch = move_batch_to(batch, self.device, 
                     non_blocking=self.training_parameters.performance_tricks)
         match batch:
             case dict():
@@ -304,26 +306,6 @@ class Trainer():
             hook.set_environment(self.global_env)
             hook()
 
-    @staticmethod
-    def move_batch_to(batch, device, non_blocking=False):
-        match batch:
-            case batch if hasattr(batch, "to"):
-                return batch.to(device, non_blocking=non_blocking)
-            case batch if hasattr(batch, "_asdict"):
-                t_ = type(batch)
-                return t_(**{key: value.to(device, non_blocking=non_blocking) 
-                             for key, value in batch._asdict().items()})
-            case dict():
-                return {key: value.to(device, non_blocking=non_blocking) 
-                        for key, value in batch.items()}
-            case _ if isinstance(batch, torch.Tensor):
-                return batch.to(device, non_blocking=non_blocking)
-            case (*seq,):
-                return type(seq)(i.to(device, non_blocking=non_blocking) 
-                                 for i in seq)
-            case _:
-                raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
-
     def load_checkpoint(self, checkpoint_str):
         from ml_lib.pipeline.experiment_tracking import Checkpoint
         assert self.database_session is not None, "cannot load checkpoint with no database session"
@@ -331,6 +313,9 @@ class Trainer():
         if checkpoint is None: 
             log.warn(f'Could not load checkpoint "{checkpoint_str}": not found')
             return
+        log.info(f"restarting from checkpoint of model {checkpoint.model.name} at step {checkpoint.step.step}")
+        if not checkpoint.is_last:
+            log.warn(f"Restarting from a non-final checkpoint!")
         self.model.load_checkpoint(checkpoint.checkpoint)
 
     def resume(self, step: "int|DBTraining_step|None"):

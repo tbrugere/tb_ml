@@ -144,6 +144,8 @@ class Experiment():
                 split_transform = SplitTransform(**self.config.auto_split, which=which)
             except ValueError as e:
                 raise ValueError(f"Dataset {which} not found") from e
+            else:
+                log.info(f"automatically splitting dataset base to obtain dataset {which}")
             base_dataset = self.load_dataset(which="base")
             dataset = split_transform(base_dataset)
             if cache:

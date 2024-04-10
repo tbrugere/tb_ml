@@ -6,8 +6,8 @@ from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
 from dataclasses import dataclass, field
 from datetime import datetime
 from textwrap import indent
-from sqlalchemy import create_engine, select
-from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table
+from sqlalchemy import create_engine, select, text
+from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table, text
 from sqlalchemy.types import JSON, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship, Session
 from ml_lib.misc.data_structures import Maybe
@@ -24,6 +24,10 @@ class Base(DeclarativeBase):
     pass
 
 def create_tables(engine):
+    with engine.connect() as connection:
+        connection.execute(text("pragma journal_mode=wal;"))
+        connection.execute(text("pragma auto_vacuum=incremental;"))
+        connection.execute(text("pragma page_size=16384;"))
     Base.metadata.create_all(engine)
 
 experiment_models = Table(

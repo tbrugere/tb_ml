@@ -2,7 +2,7 @@ from typing import Optional
 import functools as ft
 import numpy as np
 from numpy.random import default_rng; rng = default_rng()
-from .transforms import Transform, transform_register
+from .transforms import Transform, transform_register, Element
 
 def split_indices(num_samples, *percents, rng=rng):
     if not isinstance(num_samples, int):
@@ -32,7 +32,7 @@ def split_arrays(split_indices, *arrays):
     return ret
 
 @transform_register
-class SplitTransform(Transform):
+class SplitTransform(Transform[Element, Element]):
     """should always spit the same split if given the same seed / percents and dataset_size"""
     splits: list[str]
     percents: list[float]
@@ -61,6 +61,7 @@ class SplitTransform(Transform):
         map = self.map = split_indices(n, *self.percents, rng=rng)
         split_number = self.splits.index(self.which)
         self.indices,  = np.nonzero(map == split_number)
+        self.datatype = inner.datatype
 
     def __len__(self):
         assert self.indices is not None
