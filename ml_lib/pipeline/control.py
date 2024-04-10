@@ -19,11 +19,19 @@ def set_sqlite_wal2(engine):
     from sqlalchemy import event
 
     @event.listens_for(engine, "connect")
-    def enable_wal2(dbapi_connection, connection_record):
+    def enable_wal(dbapi_connection, connection_record):
         log.info("Opening connection in WAL2 mode")
         cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL") #TODO WAL2???
+        cursor.execute("PRAGMA journal_mode=WAL") #TODO WAL2??? when it's a thing
         cursor.close()
+
+    @event.listens_for(engine, "close")
+    def _(dbapi_connection, connection_record)
+        log.info("Connection was closed. running pragma optimize")
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA optimize;") 
+        cursor.close()
+
 
 def get_database_engine(database_location):
     from sqlalchemy import create_engine, URL
@@ -153,17 +161,20 @@ class CommandLine():
         return parser
 
 
-    def cleanup_database(self):
+    def cleanup_database(self, dryrun=False):
         from ml_lib.pipeline.experiment_tracking import Checkpoint, Training_step
         from sqlalchemy import delete, not_ , func, text, select
         from datetime import timedelta
         with self.database_session() as session:
-            old_enough_steps = select(Training_step.id)\
-                .where(func.now() - Training_step.step_time > timedelta(days=2))
+            should_delete = select(Checkpoint.id)\
+                .join(Training_step)\
+                .where(func.julianday(func.now()) - func.julianday(Training_step.step_time) > 2)\
+                .where(not_(Checkpoint.is_last))
+            number_to_delete, = session.execute(select(func.count(should_delete.cte().c.id))).one()
 
+            log.info(f"deleting {number_to_delete} elements...")
             query = delete(Checkpoint)\
-                    .where(not_(Checkpoint.is_last))\
-                    .where(Checkpoint.step_id.in_(old_enough_steps))
+                    .where(Checkpoint.id.in_(should_delete))
             log.info("executing delete query...")
             session.execute(query, execution_options={"synchronize_session": False})
             session.commit()
