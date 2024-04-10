@@ -2,7 +2,7 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
-from typing import Optional, Any, TYPE_CHECKING, Self, assert_never
+from typing import Iterable, Optional, Any, TYPE_CHECKING, Self, assert_never
 from dataclasses import dataclass, field
 from datetime import datetime
 from textwrap import indent
@@ -24,7 +24,7 @@ class Base(DeclarativeBase):
     pass
 
 def create_tables(engine):
-    with engine.connect() as connection:
+    with engine.connect() as connection :
         connection.execute(text("pragma journal_mode=wal;"))
         connection.execute(text("pragma auto_vacuum=incremental;"))
         connection.execute(text("pragma page_size=16384;"))
@@ -378,6 +378,21 @@ class CacheCheckpoint():
     model_id: int
     is_last: bool = False
 
+    @classmethod
+    def from_model(cls, 
+                   model: Model_, 
+                   is_last: bool = False, 
+                   *, 
+                   session: Session|None):
+        model_id = model.get_database_id(session=session)
+        if model_id is None:
+            raise ValueError("couldn't infer model id...")
+        return cls(
+            model_id=model_id, 
+            is_last=is_last,
+            checkpoint=model.get_checkpoint()
+        )
+
     def to_database_object(self, step):
         return Checkpoint(
             checkpoint=self.checkpoint, 
@@ -401,7 +416,7 @@ class NonBlockingStep():
         self.metrics = {i: move_batch_to(v, device="cpu", non_blocking=True, ignore_failure=True) 
                         for i, v in self.metrics.items()}
 
-    def to_database_objects(self, model_id:int):
+    def to_database_objects(self) -> Iterable[Training_step|Checkpoint] :
         step = Training_step(
                 training_run_id=self.training_run_id,
                 step = self.step, 
@@ -421,21 +436,19 @@ class NonBlockingStep():
         d = dict()
         for k, v in metrics.items():
             if hasattr(v, "item"):
-                v = v.item()
+                    v = v.item()
             d[k] = v
         return d
 
 class NonBlockingStepCache():
     cached_values: list[NonBlockingStep] = []
-    model_id: int 
 
-    def __init__(self, model_id: int) -> None:
+    def __init__(self) -> None:
         self.cached_values = []
-        self.model_id = model_id
 
     def __iter__(self):
         for nbs in self.cached_values:
-            yield from nbs.to_database_objects(self.model_id)
+            yield from nbs.to_database_objects()
 
     def add(self, step: NonBlockingStep):
         self.cached_values.append(step)

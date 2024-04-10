@@ -378,11 +378,21 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         else:
             return None
         if db_object is not None:
+            if self.id is None: self.id = db_object.id
             return db_object
         if add_if_needed:
             self.save_to_database(session)
             return self.get_database_object(session, add_if_needed=False)
         return None
+
+    def get_database_id(self, session: Session|None = None, add_if_needed=False):
+        if self.id is not None:
+            return self.id
+        database_object = self.get_database_object(session=session, 
+                                                   add_if_needed=add_if_needed)
+        if database_object is not None: return database_object.id
+        return None
+
 
     def sync_with_database_object(self, session: Session|None = None) -> None:
         if session is None:

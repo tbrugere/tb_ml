@@ -1,3 +1,4 @@
+from datetime import datetime
 from re import T
 from textwrap import dedent
 from typing import Optional, TYPE_CHECKING, Iterable, TypeVar, Protocol, Literal, overload
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from tqdm import tqdm
     from sqlalchemy.orm import Session
-    from ml_lib.pipeline.experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step
+    from ml_lib.pipeline.experiment_tracking import Model as DBModel, Training_run as DBTraining_run, Training_step as DBTraining_step, NonBlockingStep, NonBlockingStepCache, CacheCheckpoint
     from trello import TrelloClient, List as TrelloList, Board as TrelloBoard, Card as TrelloCard, Checklist as TrelloChecklist
 
 
@@ -199,8 +200,10 @@ class TqdmHook(TrainingHook):
     def reset_progressbar(self, initial: int = 0):
         totaliter =self.env.total_iter
         epoch = self.env.epoch
+        model_name = self.env.model.name
         self.last_known_epoch = epoch
-        self.progressbar = self.tqdm(total=totaliter, initial=initial, desc=f"Epoch {epoch}")
+        self.progressbar = self.tqdm(total=totaliter, initial=initial, desc=f"{model_name}: Epoch {epoch}", 
+                                     smoothing=.1)
 
     def set_state(self):
         step = self.env.iteration
@@ -318,11 +321,12 @@ class DatabaseHook(EndAndStepHook):
     flexible: bool = True
     commit_tries: int = 0 # the number of times we have failed to use session.commit() 
     #(because of database locking.). If >0, we should retry next iteration
-
+    cache: "NonBlockingStepCache"
 
     def __init__(self, interval: int=1, *, database_session: "Session", checkpoint_interval: int = 100, commit_interval: int = 100, training_run_id: int|None=None, 
                  loss_name="loss", metrics=[], flexible: bool=True):
         super().__init__(interval, absolutely_necessary=False)
+        from ml_lib.pipeline.experiment_tracking import NonBlockingStepCache
         assert checkpoint_interval%interval == 0
         assert commit_interval % interval == 0
         self.database_session = database_session
@@ -336,80 +340,84 @@ class DatabaseHook(EndAndStepHook):
 
         self.commit_tries = 0
         self.flexible = flexible
+        self.cache = NonBlockingStepCache()
 
     def hook(self):
         from ml_lib.pipeline.experiment_tracking import Training_run as DBTraining_run, Training_step as DBTraining_step
         from sqlalchemy.exc import OperationalError
         step: int = self.env.iteration
         training_finished = self.env.get("training_finished") or False
-        training_step: DBTraining_step = self.get_training_step(training_finished)
+        self.log_training_step_to_cache(training_finished)
         self.database_session.add(training_step)
         if training_finished or (step + 1) % self.commit_interval == 0 or self.commit_tries > 0:
-            try:
-                self.database_session.commit()
-            except (sqlite3.OperationalError, OperationalError) as exception: 
-                self.handle_failure_to_commit(training_finished=training_finished, exception=exception)
+            succeeded = self.cache.empty_into_db(self.database_session, allow_failure=self.flexible)
+            if not succeeded:
+                self.handle_failure_to_commit(training_finished=training_finished)
 
     def setup(self):
         # from ..experiment_tracking import Training_run as DBTraining_run
         dbtraining_run = self.env.get("database_object")
         if dbtraining_run is None: raise ValueError("tried to create a database hook with no database object in the environment")
 
-    def get_training_step(self, is_last):
-        from ml_lib.pipeline.experiment_tracking import Training_step as DBTraining_step, Checkpoint as DBCheckpoint
+    def log_training_step_to_cache(self, is_last):
         from datetime import datetime
+        from ml_lib.pipeline.experiment_tracking import NonBlockingStep, CacheCheckpoint
+        #################### determine basic info
         step: int = self.env.iteration
         epoch: int = self.env.epoch
         if step is None:
             assert is_last
             step = self.env.total_iter - 1
             epoch = self.env.n_epochs - 1
-        training_run = self.env.get("training_run_db")
+        training_run: "DBTraining_run" = self.env.get("training_run_db")
         if training_run is None:
             raise ValueError("Tried to use DatabaseHook without a training_run_db object in the environment")
+        training_run_id = training_run.id
             
+        #################### determine metrics and loss
         loss = self.env.get(self.loss_name)
         step_time = datetime.now()
         if self.metrics:
-            metrics = [self.env.get(metric) for metric in self.metrics]
+            metrics = {metric: self.env.get(metric) for metric in self.metrics}
         elif (env_metrics:= self.env.get("metrics")) is not None:
             metrics = env_metrics
-        else: metrics = []
+        else: metrics = {}
 
-
-        
-        training_step: DBTraining_step= DBTraining_step(
-                training_run=training_run, 
-                step=step, 
-                epoch=epoch, 
-                step_time=step_time, 
-                loss=loss, 
-                metrics=metrics, 
-                )
-
+        #################### maybe checkpoint
         is_checkpointing_step = ((step + 1) % self.checkpoint_interval) == 0
         should_checkpoint = is_last or is_checkpointing_step
 
         if should_checkpoint:
             model = self.env.model
-            checkpoint = DBCheckpoint.from_model(
-                    model, is_last=is_last, step=training_step, 
+            checkpoint = CacheCheckpoint.from_model(model, is_last=is_last,
                     session=self.database_session)
-            self.database_session.add(training_step)
-            self.database_session.add(checkpoint)
+        else: checkpoint = None
+        
+        #################### record into the cache
+        training_step: NonBlockingStep= NonBlockingStep(
+            training_run_id=training_run_id,
+            step=step, 
+            step_time=step_time, 
+            loss=loss,
+            epoch=epoch, 
+            metrics=metrics, 
+            checkpoint=checkpoint
+            )
+        self.cache.add(training_step)
 
-        return training_step
 
-    def handle_failure_to_commit(self, training_finished, exception):
+    def handle_failure_to_commit(self, training_finished):
         if training_finished:
             for try_n in it.count():
-                logger.warning(f"Failed to checkpoint at the end of training because of {exception}. retrying for the {try_n}th time")
-                try: self.database_session.commit()
-                except sqlite3.OperationalError: sleep(1)
+                logger.warning(f"Failed to checkpoint at the end of training. retrying for the {try_n}th time")
+                try: 
+                    self.cache.empty_into_db(self.database_session, allow_failure=False) 
+                    #allow_failure = False re-raises, so we're able to catch and print the error
+                except Exception as e: 
+                    logger.warning(f"Got exception {e}")
+                    sleep(1)
             return
-        if not self.flexible:
-            raise exception
-        if self.commit_tries > 10:
+        if (self.commit_tries - 1) % 10 == 0 :
             logger.warning(f"failed commiting to db for {self.commit_tries} consecutive iterations")
         self.commit_tries += 1 # makes us retry next iteration
 
@@ -512,6 +520,7 @@ class TrelloHook(EndHook):
         model_card = self.find_model_card()
         if model_card is None: model_card = self.make_model_card()
         self.card = model_card
+        self.card.comment(f"Started training on machine {os.environ.get('HOSTNAME', 'unknown')} at {datetime.now().isoformat()}")
 
     def get_list(self, name) -> "TrelloList":
         return self.find_name(self.board.list_lists(), name)
