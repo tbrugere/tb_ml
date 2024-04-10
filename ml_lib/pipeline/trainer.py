@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from collections import namedtuple
-from typing import Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
+from typing import Iterator, Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
 from pydantic import BaseModel, Field
 
 from logging import getLogger; log = getLogger(__name__)
@@ -266,26 +266,24 @@ class Trainer():
             epoch= self.epoch_n
         ))
 
+        data_iter = iter(enumerate(self.data))
+
         if self.skip_n_datapoints is not None:
-            skip_n_steps = self.skip_n_datapoints
-            skip_pbar = iter(try_tqdm(skip_n_steps, desc=f"skipping {skip_n_steps} datapoints"))
+            self.skip_batches(self.skip_n_datapoints, data_iter)
             self.skip_n_datapoints = None
-        else: 
-            skip_n_steps = 0
-            skip_pbar = iter(range(0))
-        for step_n, batch in enumerate(self.data):
-            if step_n < skip_n_steps:
-                next(skip_pbar)
-                continue
+
+        for step_n, batch in data_iter:
             self.try_step(batch)
             self.iteration_n += 1
 
         for hook in self.epoch_hooks:
             hook.set_environment(self.epoch_env)
             hook()
+    
 
     def train(self):
         model = self.model
+        log.info(f"Training model {model.name}")
         if model.do_pretraining is not None:
             log.info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
@@ -338,7 +336,7 @@ class Trainer():
             if checkpoint.step.step < step_num:
                 log.warn(f"asked to resume from step {step_num}, but no checkpoint was found for that step")
                 log.warn(f"using that from  {checkpoint.step.step} instead")
-            
+        log.info(f"resuming from step {checkpoint.step.step}") 
         self.model.load_checkpoint(checkpoint.checkpoint)
         step_num = checkpoint.step.step + 1# we saved *after* step step_num, so we restart at step_num + 1
 
@@ -368,6 +366,12 @@ class Trainer():
         self.iter_env.reset()
         gc.collect()
         torch.cuda.empty_cache()
+
+    @staticmethod
+    def skip_batches(skip_n_steps: int, data_iter: Iterator):
+        pbar = try_tqdm(skip_n_steps, desc=f"skipping {skip_n_steps} batches")
+        for _ in zip(pbar, data_iter):
+            pass
 
     @staticmethod
     def get_optimizer(name: str|Type[torch.optim.Optimizer], model_parameters, optimizer_arguments):
