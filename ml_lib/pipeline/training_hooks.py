@@ -348,11 +348,10 @@ class DatabaseHook(EndAndStepHook):
         step: int = self.env.iteration
         training_finished = self.env.get("training_finished") or False
         self.log_training_step_to_cache(training_finished)
-        self.database_session.add(training_step)
         if training_finished or (step + 1) % self.commit_interval == 0 or self.commit_tries > 0:
             succeeded = self.cache.empty_into_db(self.database_session, allow_failure=self.flexible)
-            if not succeeded:
-                self.handle_failure_to_commit(training_finished=training_finished)
+            if succeeded: self.commit_tries = 0
+            else: self.handle_failure_to_commit(training_finished=training_finished)
 
     def setup(self):
         # from ..experiment_tracking import Training_run as DBTraining_run
