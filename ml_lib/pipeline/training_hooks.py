@@ -536,16 +536,12 @@ class TrelloHook(EndHook):
         model_name = model.model_name
         training_parameters = self.env.training_parameters
 
-        model_description= dedent(f"""
-        ## Model parameters
-        ```
-        {str(model)}
-        ```
-        ## Training parameters
-        ```
-        {str(training_parameters)}
-        ```
-        """)
+        model_description= (
+                "## Model parameters\n\n"
+                f"```python\n{str(model)}```\n\n"
+                "## Training parameters\n\n"
+                f"```python{str(training_parameters)}```"
+        )
         if ongoing: l = self.ongoing_list
         else: l = self.finished_list
 
