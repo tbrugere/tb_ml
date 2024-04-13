@@ -6,7 +6,8 @@ import functools as ft
 import os
 from os import PathLike
 from pathlib import Path
-from logging import getLogger; log = getLogger("__main__")
+from logging import getLogger
+import typing; log = getLogger("__main__")
 
 from ml_lib.misc.context_managers import set_num_threads, set_log_level, torch_profile_auto_save
 
@@ -42,6 +43,7 @@ def get_database_engine(database_location):
     return db_engine
 
 CommandType: TypeAlias = Literal["train", "cleanup", "status"]
+command_choices = typing.get_args(CommandType)
 
 class CommandLine():
 
@@ -133,7 +135,7 @@ class CommandLine():
 
         parser.add_argument("config", 
                             type=Path, )
-        parser.add_argument("command", nargs="+", type=str)
+        parser.add_argument("command", nargs="+", type=str, choices=command_choices)
         parser.add_argument("--device", type=str, default=None)
         parser.add_argument("--database", type=Path, 
                             default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
