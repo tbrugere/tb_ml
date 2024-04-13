@@ -2,6 +2,7 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
+from time import strftime
 from typing import Iterable, Optional, Any, TYPE_CHECKING, Self, assert_never
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -272,6 +273,8 @@ class Training_run(Base):
             time_info = "NEVER RAN."
         else:
             assert time_end is not None
+            time_start = strftime("%d/%m %H:%M", time_start)
+            time_end = strftime("%d/%m %H:%M", time_end)
             time_info = f"{time_start} - {time_end}"
 
         last_checkpoint = self.last_checkpoint()
