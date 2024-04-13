@@ -430,6 +430,7 @@ class Trainer():
             model= model_db,
             training_parameters=self.training_parameters.model_dump(),
             experiment_id=experiment.id, 
+            n_steps = self.total_iter, 
         )
 
     def get_database_hook(self, loss_name="loss", metrics=[] ):
