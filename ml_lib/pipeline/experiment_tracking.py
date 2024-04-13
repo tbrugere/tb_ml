@@ -135,7 +135,7 @@ class Model(Base):
         if self is None:
             return f"✗ — {name}"
         name = name or self.name
-        tr_info_strs = [training_run.get_info_str 
+        tr_info_strs = [training_run.get_info_str()
                         for training_run in self.training_runs]
         started_training = len(tr_info_strs) != 0
         finished_training = self.has_finished_training()
