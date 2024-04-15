@@ -135,7 +135,8 @@ class CommandLine():
 
         parser.add_argument("config", 
                             type=Path, )
-        parser.add_argument("command", nargs="+", type=str, choices=command_choices)
+        parser.add_argument("command", nargs="+", type=str, 
+                            choices=command_choices)
         parser.add_argument("--device", type=str, default=None)
         parser.add_argument("--database", type=Path, 
                             default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
