@@ -415,7 +415,8 @@ class NonBlockingStep():
     checkpoint: CacheCheckpoint|None = field(default=None)
 
     def __post_init__(self):
-        self.loss = self.loss.to("cpu", non_blocking=True)
+        if self.loss is not None:
+            self.loss = self.loss.to("cpu", non_blocking=True)
         self.metrics = {i: move_batch_to(v, device="cpu", non_blocking=True, ignore_failure=True) 
                         for i, v in self.metrics.items()}
 
@@ -425,7 +426,7 @@ class NonBlockingStep():
                 step = self.step, 
                 epoch=self.epoch,
                 step_time=self.step_time, 
-                loss = self.loss.item(), 
+                loss = self.loss.item() if self.loss is not None else None, 
                 metrics = self.itemize_metrics(self.metrics)
                 )
 
