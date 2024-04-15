@@ -200,7 +200,7 @@ class TqdmHook(TrainingHook):
     def reset_progressbar(self, initial: int = 0):
         totaliter =self.env.total_iter
         epoch = self.env.epoch
-        model_name = self.env.model.name
+        model_name = self.env.model.model_name
         self.last_known_epoch = epoch
         self.progressbar = self.tqdm(total=totaliter, initial=initial, desc=f"{model_name}: Epoch {epoch}", 
                                      smoothing=.1)
