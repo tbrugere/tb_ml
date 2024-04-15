@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from collections import namedtuple
 from typing import Iterator, Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
 from pydantic import BaseModel, Field
 
@@ -10,13 +9,11 @@ if TYPE_CHECKING:
     from .experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
 
 import torch
-from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from ml_lib.misc.torch_functions import move_batch_to
-from ..models import load_model
 from ..models.base_classes import Model
-from ..datasets import load_dataset, Dataset
+from ..datasets import Dataset
 from .training_hooks import TrainingHook, OptimizerHook, LRSchedulerHook, DatabaseHook
 from ..environment import Environment, HierarchicEnvironment
 from ..register import Loader
@@ -283,7 +280,7 @@ class Trainer():
 
     def train(self):
         model = self.model
-        log.info(f"Training model {model.name}")
+        log.info(f"Training model {model.model_name}")
         if model.do_pretraining is not None:
             log.info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
