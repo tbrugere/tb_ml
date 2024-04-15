@@ -1,4 +1,4 @@
-from typing import Any, Literal, overload, TYPE_CHECKING
+from typing import Any, ClassVar, Literal, overload, TYPE_CHECKING
 
 from copy import deepcopy
 import functools as ft
@@ -92,6 +92,8 @@ class ExperimentConfig(BaseModel):
 class Experiment():
     config: ExperimentConfig
     name: str|None
+
+    resume_from_options: ClassVar[tuple[str, ...]] = ("highest_step", "highest_time", "only_one", "ask", "no")
 
     _datasets: dict[str, Dataset]
 
@@ -242,6 +244,7 @@ class Experiment():
     def get_training_run_from_db(self, model: Model, resume_from) -> "DBTraining_run| None":
         from sqlalchemy import select, desc
         from ml_lib.pipeline.experiment_tracking import Experiment as DBExperiment, Training_run as DBTraining_run, Training_step as DBTraining_step
+        assert resume_from in self.resume_from_options
         session = self.database_session
         assert session is not None
         db_object = self.database_object

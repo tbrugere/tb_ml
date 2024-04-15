@@ -139,7 +139,8 @@ class CommandLine():
         parser.add_argument("--device", type=str, default=None)
         parser.add_argument("--database", type=Path, 
                             default=os.environ.get("EXPERIMENT_DATABASE", "experiment_database.db"))
-        parser.add_argument("--resume", type=str, default="highest_step")
+        parser.add_argument("--resume", type=str, default="highest_step", 
+                            choices=Experiment.resume_from_options)
         parser.add_argument("--only-model", type=str, default=None)
         parser.add_argument(
             '-d', '--debug',
