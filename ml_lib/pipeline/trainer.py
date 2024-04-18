@@ -248,9 +248,12 @@ class Trainer():
                 self.iter_env.record("x", batch)
         self.iter_env.record("batch", batch)
 
-        loss = self.iter_env.run_function(self.model.compute_loss, 
-                                          record_result_as="loss")
-        loss.backward()
+        if self.model.do_step is not None:
+            self.iter_env.run_function(self.model.do_step)
+        else:
+            loss = self.iter_env.run_function(self.model.compute_loss, 
+                                              record_result_as="loss")
+            loss.backward()
         
         for hook in self.step_hooks:
             hook.set_environment(self.iter_env)
@@ -381,6 +384,7 @@ class Trainer():
 
     def get_optimizer_hook(self, name: str|Type[torch.optim.Optimizer], optimizer_arguments, clip_grad_norm=None, fake_batch_size=1) -> OptimizerHook:
         optimizer = self.get_optimizer(name, self.model.parameters(), optimizer_arguments)
+        self.global_env.record("optimizer", optimizer)
         return OptimizerHook(optimizer, clip_gradient=clip_grad_norm, interval=fake_batch_size)
 
     @staticmethod

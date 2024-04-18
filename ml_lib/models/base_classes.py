@@ -139,6 +139,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     sample: Optional[Callable] = None
     do_training: Optional[Callable[..., None]] = None
     do_epoch: Optional[Callable[..., None]] = None
+    do_step: Optional[Callable[..., None]] = None
     do_pretraining: Optional[Callable[..., None]] = None
 
     def __init__(self, name: Optional[str]=None, 
@@ -469,6 +470,13 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         (and `has_training_function` is False)
         """
         return self.do_epoch is not None
+
+    def has_step_function(self):
+        """returns True if the model has a `do_step` function
+        This function will be called instead of the loss to train the model if available 
+        (and `has_training_function` is False, and `has_epoch_function` is False)
+        """
+        return self.do_step is not None
 
     @property
     def is_supervised(self) -> bool:
