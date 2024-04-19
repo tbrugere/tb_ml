@@ -198,7 +198,7 @@ class Trainer():
             hook.set_environment(self.iter_env)
             hook.setup()
         for hook in epoch_hooks:
-            hook.env.set_environment(self.epoch_env)
+            hook.set_environment(self.epoch_env)
             hook.setup()
         for hook in end_hooks:
             hook.set_environment(self.global_env)
@@ -231,6 +231,7 @@ class Trainer():
             iteration=self.iteration_n
         ))
         self.model.train()
+        self.model.set_environment(self.iter_env)
 
         batch = move_batch_to(batch, self.device, 
                     non_blocking=self.training_parameters.performance_tricks)
@@ -265,6 +266,7 @@ class Trainer():
             last_iteration=self.iteration_n, 
             epoch= self.epoch_n
         ))
+        self.model.set_environment(self.epoch_env)
 
         data_iter = iter(enumerate(self.data))
 
@@ -283,6 +285,7 @@ class Trainer():
 
     def train(self):
         model = self.model
+        model.set_environment(self.global_env)
         log.info(f"Training model {model.model_name}")
         if model.do_pretraining is not None:
             log.info(f"Model {model} has do_pretraining method, launching")
@@ -384,7 +387,7 @@ class Trainer():
 
     def get_optimizer_hook(self, name: str|Type[torch.optim.Optimizer], optimizer_arguments, clip_grad_norm=None, fake_batch_size=1) -> OptimizerHook:
         optimizer = self.get_optimizer(name, self.model.parameters(), optimizer_arguments)
-        self.global_env.record("optimizer", optimizer)
+        self.global_env.record("optim", optimizer)
         return OptimizerHook(optimizer, clip_gradient=clip_grad_norm, interval=fake_batch_size)
 
     @staticmethod
