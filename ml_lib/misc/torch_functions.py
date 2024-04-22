@@ -3,7 +3,7 @@ from typing import Sequence
 import itertools as it
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 
 from .basic import eventually_tuple
 #-----------------------------------------------------------
@@ -105,3 +105,102 @@ def move_batch_to(batch, device, non_blocking=False, ignore_failure=False):
                              for i in seq)
         case _ if not ignore_failure:
             raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
+
+class ShouldBe():
+    """
+    Nice little class that allows checking shapes of torch tensors without too much verbosity / distraction.
+
+    Basically I often end up writing code where I annotate with the shape each tensor should have
+
+    such as this:
+
+    .. code-block:: python
+
+        def forward(self, x, y):
+            b, n, dx = x.shape
+            b_, m, dy = y.shape
+            assert b == b_
+            assert dx == self.dx
+            assert dy == self.dy
+
+
+            key  = self.mlp_x(x) # b, n, hidden
+            query = self.mlp_y(y) # b, m, hidden
+            logits = (key[:, :, None, :] * query[:, None, :, :]).sum(dim=-1) # b, n, m
+
+           ...
+
+    And I would like those annotations to be translated into asserts, but it would be very heavy
+
+
+    .. code-block:: python
+
+        def forward(self, x, y):
+            b, n, dx = x.shape
+            b_, m, dy = y.shape
+            assert b == b_
+            assert dx == self.dx
+            assert dy == self.dy
+
+
+            key  = self.mlp_x(x) 
+            assert key.shape == b, n, hidden
+            query = self.mlp_y(y) 
+            assert query.shape == b, m, hidden
+            logits = (key[:, :, None, :] * query[:, None, :, :]).sum(dim=-1) 
+            assert logits.shape == b, n, m
+           ...
+            
+    It really clutters the code (double the length)
+
+    Instead now I can write
+
+    .. code-block:: python
+
+        def forward(self, x, y):
+            from ml_lib.misc.torch_functions import ShouldBe as should_be
+            b, n, dx = x.shape
+            b_, m, dy = y.shape
+            assert b == b_
+            assert dx == self.dx
+            assert dy == self.dy
+
+
+            key  = self.mlp_x(x)                        <= should_be(b, n, hidden)
+            query = self.mlp_y(y)                       <= should_be(b, m, hidden)
+            logits = (key[:, :, None, :] * query[:, None, :, :]).sum(dim=-1) <= should_be(b, n, m)
+
+           ...
+
+    """
+    shape: Sequence[int]
+    dtype: torch.dtype|None=None
+    device: torch.device|None = None
+
+    def __init__(self, *shape, dtype=None, device=None):
+        self.shape = shape
+        if dtype is not None: self.dtype = dtype
+        else: self.dtype=None
+        if device is not None: self.device = torch.device(device)
+        else: self.device =None
+
+    def __invert__(self): 
+        """ so that you can write 
+            ``tensor<=~~~~~~~~~~~~~~~~~~~~~~~~Shouldbe(n, m)`` This is probably not very """
+        return self
+
+
+    def __ge__(self, other):
+        """called as ``tensor <= ShouldBe(n, m)``"""
+        if not isinstance(other, Tensor): return NotImplemented
+
+        if self.shape != other.shape:
+            raise ValueError(f"Shape check failed: expected {self.shape}, got {other.shape}")
+        if self.dtype is not None and self.dtype != other.dtype:
+            raise ValueError(f"Dtype check failed: expected {self.dtype}, got {other.dtype}")
+        if self.device is not None and self.device != other.device:
+            raise ValueError(f"Dtype check failed: expected {self.device}, got {other.device}")
+
+
+
+
