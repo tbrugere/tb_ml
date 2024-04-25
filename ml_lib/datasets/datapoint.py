@@ -14,6 +14,10 @@ class Datapoint():
         return self.__class__(**{name: value.to(device, **kwargs) 
                                  for name, value in self.asdict().items()})
 
+    def __repr__(self):
+        args = ", ".join(f"{name}={item}" for name, item in self.asdict().items())
+        return f"{self.__class__.__name__}({args})"
+
     @classmethod
     def collate(cls, datapoints: list[Self]):
         return default_collate(datapoints)
