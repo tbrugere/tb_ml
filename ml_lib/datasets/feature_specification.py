@@ -1,4 +1,4 @@
-from typing import Callable, ClassVar, Any
+from typing import Callable, ClassVar, Any, Self
 from dataclasses import dataclass, field as dataclass_field
 
 import torch
@@ -168,6 +168,18 @@ class FeatureSpecification(LoadableMixin):
         return dict(
             type=self.__class__.__name__, 
             features=[f.to_dict() for f in self.features])
+
+    def subfeature(self, other: "FeatureSpecification|list[str]", x):
+        if not isinstance(other, FeatureSpecification):
+            feat_dict = {feature.name: feature for feature in self.features}
+            other = FeatureSpecification([feat_dict[name] for name in other])
+        cut = self.cut_up(x)
+        return other.stack(cut)
+
+    def subfeature_spec(self, feature_list: list[str]) -> Self:
+        feat_dict = {feature.name: feature for feature in self.features}
+        other = self.__class__([feat_dict[name] for name in feature_list])
+        return other
 
     @classmethod
     def from_config(cls, config:dict[str, Any]):
