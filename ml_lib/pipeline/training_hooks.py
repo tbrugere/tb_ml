@@ -202,8 +202,9 @@ class TqdmHook(TrainingHook):
         epoch = self.env.epoch
         model_name = self.env.model.model_name
         self.last_known_epoch = epoch
-        self.progressbar = self.tqdm(total=totaliter, initial=initial, desc=f"{model_name}: Epoch {epoch}", 
-                                     smoothing=.1)
+        self.progressbar = self.tqdm(total=totaliter, initial=initial, 
+                                     desc=f"{model_name}: Epoch {epoch}", 
+                                     smoothing=.1, dynamic_ncols=True)
 
     def set_state(self):
         step = self.env.iteration
