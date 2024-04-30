@@ -171,8 +171,7 @@ class FeatureSpecification(LoadableMixin):
 
     def subfeature(self, other: "FeatureSpecification|list[str]", x):
         if not isinstance(other, FeatureSpecification):
-            feat_dict = {feature.name: feature for feature in self.features}
-            other = FeatureSpecification([feat_dict[name] for name in other])
+            other = self.subfeature_spec(other)
         cut = self.cut_up(x)
         return other.stack(cut)
 
