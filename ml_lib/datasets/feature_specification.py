@@ -187,3 +187,7 @@ class FeatureSpecification(LoadableMixin):
         features = [loader(f) for f in config["features"]]
         return cls(features)
 
+    def __int__(self):
+        # auto conversion to int. can be useful
+        return self.dim
+
