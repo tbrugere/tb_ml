@@ -33,7 +33,9 @@ class GeneratedDataset(Dataset[PointType]):
         self.seed = seed
         self.length = length
         self.sub_dataset = which
-        self.sub_dataset_seed = hash(which)
+        h = hash(which)
+        sub_dataset_seed = abs(h) << 1 + (h < 0)
+        self.sub_dataset_seed = sub_dataset_seed
 
     def __len__(self):
         return self.length
