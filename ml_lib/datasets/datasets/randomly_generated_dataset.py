@@ -26,18 +26,20 @@ class GeneratedDataset(Dataset[PointType]):
     seed: int = 42
     length: int
 
-    sub_dataset: int
+    sub_dataset: int|str
+    sub_dataset_seed: int
 
     def __init__(self, length: int, seed: int = 42, which: int|str = "train"):
         self.seed = seed
         self.length = length
+        self.sub_dataset = which
         self.sub_dataset_seed = hash(which)
 
     def __len__(self):
         return self.length
 
     def __getitem__(self, i) -> PointType:
-        rng = default_rng((self.seed, self.sub_dataset, i))
+        rng = default_rng((self.seed, self.sub_dataset_seed, i))
         return self.generate_item(rng)
 
     def generate_item(self, rng: Generator) -> PointType:
