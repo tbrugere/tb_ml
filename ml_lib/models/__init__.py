@@ -1,4 +1,4 @@
-from .base_classes import Model, Supervised, Unsupervised
+from .base_classes import Model, Supervised, Unsupervised, Hyperparameter
 
 from ..register import Loader
 from .registration import register
@@ -10,5 +10,6 @@ __all__ = [
     "Supervised", 
     "Unsupervised",
     "load_model",
-    "register"
+    "register", 
+    "Hyperparameter"
 ]

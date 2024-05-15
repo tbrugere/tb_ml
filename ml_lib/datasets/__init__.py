@@ -9,16 +9,22 @@ Datasets
 """
 
 from . import transforms
-from . import simple_shapes
+from . import datasets
 from ..register import Loader
 from .registration import register, transform_register
 from .splitting import split_arrays, split_indices
+from .base_classes import Dataset, Transform
+from .datapoint import Datapoint
 
 load_dataset = Loader(register)
+load_transform = Loader(transform_register)
 """Dataset loader (used by the automated pipeline)"""
 
 __all__ = ['load_dataset', 
+           'load_transform', 
            'register', 
            'transform_register', 
            'split_arrays', 
-           'split_indices']
+           'split_indices', 
+           'Dataset', 'Transform', 
+           'Datapoint']

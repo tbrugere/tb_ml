@@ -62,7 +62,7 @@ What I do now:
         return loss
 
 ```
-and if I want to get the value of kl, mse, 
+and if I want to get the value of kl, mse, I fetch it in the environment instead of passing it around
 
 ## What it should be used for
 
@@ -72,10 +72,9 @@ and if I want to get the value of kl, mse,
 
 ## What it shouldn t be used for
 
-- Basically anything else. You don’t want to pull a 
+- Basically anything else. You don’t want to rely on them if you can avoid it because they are implicit (it is hard to debug where something was set in the environment)
 - in particular, full loss should also be returned
 
-Instead of passing around a humo
 """
 
 from typing import TypeAlias, TypeVar, Any, Optional, Callable
@@ -263,6 +262,7 @@ class ScopedEnvironment():
 
     def __getattr__(self, key: str):
         return self.get(key)
+
 
 
 class HasEnvironmentMixin():
