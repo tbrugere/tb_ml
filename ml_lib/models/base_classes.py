@@ -2,6 +2,7 @@ from typing import (Callable, Optional, TypeVar, Annotated, get_type_hints,
                     Final, Literal, overload, TYPE_CHECKING,
                     TypeAlias, 
                     Any, ParamSpec, Generic)
+
 # dataclass_transform <-- wait for python3.12
 if TYPE_CHECKING:
     from ml_lib.pipeline.experiment_tracking import Model as Database_Model
@@ -225,13 +226,13 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         self.save_checkpoint(output)
         return output.getvalue()
 
-    def load_checkpoint(self, checkpoint:Path|str|BytesIO|bytes|dict):
+    def load_checkpoint(self, checkpoint:Path|str|BytesIO|bytes|dict, strict=True):
         if isinstance(checkpoint, bytes):
             checkpoint = BytesIO(checkpoint)
         if not isinstance(checkpoint, dict):
             checkpoint = torch.load(checkpoint, map_location=self.device)
         assert isinstance(checkpoint, dict)
-        self.load_state_dict(checkpoint["model_state_dict"])
+        self.load_state_dict(checkpoint["model_state_dict"], strict=strict)
 
     @classmethod
     def from_checkpoint(cls, checkpoint: Path|str|BytesIO, device=torch.device("cpu")):
@@ -485,6 +486,30 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     @property
     def is_generative(self) -> bool:
         return self.sample is not None
+
+    """
+    Testing
+    -------
+    """
+
+    def test_batch(self, batch):
+        from ml_lib.pipeline.tester import Testing_parameters
+        predict = self.predict
+        sample = self.sample
+        testing_parameters: Testing_parameters = self.env.testing_parameters
+        if predict is not None:
+            result = predict(b)
+        elif sample is None:
+            result = sample(b)
+        self.env.record("result", result)
+        for test in testing_parameters.tests:
+            test.run_test()
+
+    def test_element(self, element):
+        b = element.collate([element])
+
+
+
 
     """
     Misc
