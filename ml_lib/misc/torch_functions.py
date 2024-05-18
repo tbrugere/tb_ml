@@ -201,6 +201,9 @@ class ShouldBe():
         if self.device is not None and self.device != other.device:
             raise ValueError(f"Dtype check failed: expected {self.device}, got {other.device}")
 
+        return other
 
 
-
+    def __gt__(self, other):
+        """called as ``tensor < ShouldBe(n, m)``"""
+        return self.__ge__(other)
