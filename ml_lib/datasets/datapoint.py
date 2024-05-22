@@ -2,6 +2,8 @@ from typing import Self
 from torch.utils.data import default_collate
 import dataclasses
 
+from ml_lib.misc.torch_functions import move_batch_to
+
 class Datapoint():
 
     def get_feature(self, name):
@@ -46,7 +48,7 @@ class DictDatapoint(Datapoint):
 
     def to(self, device, **kwargs):
         return self.__class__(
-                {name: value.to(device, **kwargs) 
+                {name: move_batch_to(value, device, ignore_failure=True,  **kwargs) 
                 for name, value in self.asdict().items()})
 
     def __getattr__(self, attr):
