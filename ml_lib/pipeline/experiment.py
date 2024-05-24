@@ -26,6 +26,7 @@ class ModelConfig(BaseModel):
     params: dict[str, Any] = Field(default={})
     training_parameters: Training_parameters = Field(
             default=lambda: Training_parameters(n_epochs=1))
+    testing_parameters: dict[str, Any] = Field(default_factory=dict)
     training_set: str = "train"
     testing_set: str = "test"
 
@@ -329,6 +330,25 @@ class Experiment():
         trainer.train()
 
         return model_
+
+    def test(self, model: int|str, device:"torch.device|str" = "cpu", resume="latest"):
+        from ml_lib.pipeline.trainer import Trainer
+        from ml_lib.pipeline.experiment_tracking import Checkpoint
+        import torch
+        session = self.database_session
+        model_, model_params= self.load_model(model, 
+                                              return_config=True)
+        training_run = self.get_training_run_from_db(model_, resume_from=resume)
+        assert training_run is not None
+        checkpoint = training_run.last_checkpoint()
+        assert checkpoint is not None
+        model_.load_checkpoint(checkpoint.checkpoint)
+        data = self.load_dataset(model_params.testing_set)
+
+        model_.run_tests()
+
+    def test_all(self, device:"torch.device|str" = "cpu", resume="latest")
+        for i in range(self.n_models): self.train(i, device)
 
     def train_all(self, device:"torch.device|str" = "cpu", 
                   skip_finished: bool =True, 
