@@ -60,7 +60,6 @@ class Training_parameters(BaseModel):
 
 class Trainer():
 
-
     model: Model
     data: DataLoader
 
