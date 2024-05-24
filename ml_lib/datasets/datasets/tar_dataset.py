@@ -28,7 +28,7 @@ class TarDataset(Dataset[PointType]):
         No. But you can pipe it to CacheTransform if that's what you wish.
 
     Can I use several workers with this?:
-        Yes
+        Currently no there's a bug I still need to fix
 
     What isn't safe?
         please don't edit the tar file while reading from it?
@@ -39,6 +39,8 @@ class TarDataset(Dataset[PointType]):
 
     members_list: list[str]
     
+    # at first I thought it would be enough to not have it in getstate (so it wouldn't be sent to workers)
+    # but i think some workers are created by forking
     _file: dict[None|int, tarfile.TarFile] 
 
     metadata: dict
@@ -81,6 +83,11 @@ class TarDataset(Dataset[PointType]):
         file = tarfile.open(self.file_path)
         self._file[workerid] = file
         return file
+
+    @staticmethod
+    def read_metadata(metadata_file):
+        """Can be edited if your metadata file is not in yaml format"""
+        return yaml.safe_load(metadata_file)
 
     def _get_workerid(self):
         worker_info = get_worker_info()
