@@ -1,9 +1,11 @@
 from typing import TypeVar, Generic, Iterator, ClassVar, overload, NoReturn
 
 from dataclasses import dataclass
+
 # from typing import Callable, TypeAlias
 
 import torch.utils.data as torch_data
+from ml_lib.register import Loader
 from .datapoint import Datapoint
 
 Element = TypeVar("Element", bound=Datapoint)
@@ -30,6 +32,21 @@ class Dataset(torch_data.Dataset, Generic[Element]):
         This is given to models. 
         It can be eg. feature_size or feature_specs"""
         return dict()
+
+    def apply_transforms(self, transforms: "list[str|dict|Transform]", register=None) -> "Dataset":
+        """Apply the transforms to the dataset.
+        This does not modify the dataset, but returns a new one."""
+        from .registration import transform_register as default_register
+        register = register or default_register
+        dataset = self
+        loader = Loader(register)
+        for transform in transforms:
+            if isinstance(transform, str):
+                transform = register[transform]
+            elif isinstance(transform, dict):
+                transform = loader(transform)
+            dataset = transform(dataset)
+        return dataset
 
 class Transform(Dataset[Element2], Generic[Element, Element2]):
     """
