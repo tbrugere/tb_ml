@@ -50,6 +50,8 @@ class Training_parameters(BaseModel):
     checkpoint_interval: int = 10000
     database_commit_interval: int = 100
 
+    train_transforms: list[dict|str] = []
+
     """other model's checkpoint to start from
     in the form 
     - model_name
@@ -123,6 +125,8 @@ class Trainer():
             raise NotImplemented
         match data:
             case DataLoader():
+                if training_parameters.train_transforms:
+                    log.warn("Transforms provided, but data is already a DataLoader, ignoring transforms")
                 pass
             case Dataset():
                 data = self.get_dataloader(data)
@@ -443,11 +447,13 @@ class Trainer():
                             commit_interval=self.training_parameters.database_commit_interval, loss_name=loss_name, metrics=metrics)
 
     def get_dataloader(self, dataset: Dataset):
+        if self.training_parameters.train_transforms:
+            dataset = dataset.apply_transforms(self.training_parameters.train_transforms)
         return DataLoader(
             dataset, 
             batch_size=self.training_parameters.batch_size, 
             collate_fn=dataset.collate, 
-            shuffle=True, # why would you disable this??
+            shuffle=True,
             pin_memory= self.training_parameters.performance_tricks 
                             and self.device.type == "cuda", 
             num_workers=5 if self.training_parameters.performance_tricks else 0,
