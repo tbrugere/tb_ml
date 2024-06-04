@@ -1,6 +1,8 @@
+import functools as ft
 from collections.abc import Sequence
 from typing import Iterator, Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
-from pydantic import BaseModel, Field
+from ml_lib.datasets.base_classes import Transform
+from pydantic import BaseModel, Field, ConfigDict
 
 from logging import getLogger; log = getLogger(__name__)
 
@@ -13,7 +15,7 @@ from torch.utils.data import DataLoader
 
 from ml_lib.misc.torch_functions import move_batch_to
 from ..models.base_classes import Model
-from ..datasets import Dataset
+from ..datasets import Dataset, Transform
 from .training_hooks import TrainingHook, OptimizerHook, LRSchedulerHook, DatabaseHook
 from ..environment import Environment, HierarchicEnvironment
 from ..register import Loader
@@ -34,15 +36,25 @@ class Training_parameters(BaseModel):
     loss: dict|None = None # to be gotten from a loss register
 
     batch_size: int|None = 10
-    fake_batch_size: int = 1
 
+    """fake_batch_size, or accumulation steps, 
+    is the number of batches to run before doing an optimization step.
+    Can be used to simulate a larger batch size, without using more memory.
+    """
+    fake_batch_size: int = 1
+    
+    """Gradient clipping. Default is 1, can be set to None to disable it"""
     clip_grad_norm: float|None = 1.
+
+    """"""
 
     step_hooks: list[dict|str] = []
     epoch_hooks: list[dict|str] = []
     end_hooks: list[dict|str] = []
 
     environment_variables: dict[str, Any] = Field(default_factory=dict)
+    """Sets variables readable in the trainer's Environment, 
+    They may be used by hooks or the model, or passed to the loss function"""
 
     performance_tricks: bool = True
     """enables various optimizations. Set to false to help debugging"""
@@ -50,7 +62,8 @@ class Training_parameters(BaseModel):
     checkpoint_interval: int = 10000
     database_commit_interval: int = 100
 
-    train_transforms: list[dict|str] = []
+    train_transforms: list[dict|str|Transform] = []
+    """data transforms applied only at training time"""
 
     """other model's checkpoint to start from
     in the form 
@@ -59,6 +72,12 @@ class Training_parameters(BaseModel):
     - model_name:run_n:max_step_n
     """
     start_from_other: str|None = None
+
+    model_config = ConfigDict(
+        ignored_types = (ft.cached_property,), 
+        protected_namespaces = (), 
+        extra = "forbid", 
+    )
 
 class Trainer():
 

@@ -6,7 +6,7 @@ from io import TextIOBase
 from logging import getLogger; log = getLogger(__name__)
 from pathlib import Path
 
-from pydantic import (BaseModel, Field)
+from pydantic import (BaseModel, Field, ConfigDict)
 import yaml
 
 if TYPE_CHECKING:
@@ -86,9 +86,11 @@ class ExperimentConfig(BaseModel):
     def load_yaml(cls, config_path):
         return cls.model_validate(yaml.safe_load(config_path.read_text()))
 
-    class Config:
+    model_config = ConfigDict(
         ignored_types = (ft.cached_property,)
         protected_namespaces = ()
+        extra = "forbid"
+    )
 
 class Experiment():
     config: ExperimentConfig
