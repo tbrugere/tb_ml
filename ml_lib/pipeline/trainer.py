@@ -62,7 +62,7 @@ class Training_parameters(BaseModel):
     checkpoint_interval: int = 10000
     database_commit_interval: int = 100
 
-    train_transforms: list[dict|str|Transform] = []
+    train_transforms: list[dict|str] = []
     """data transforms applied only at training time"""
 
     """other model's checkpoint to start from
