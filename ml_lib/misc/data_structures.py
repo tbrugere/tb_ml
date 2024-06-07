@@ -1,6 +1,8 @@
-from typing import Generic, TypeVar, Self, Callable, Iterator, overload, Literal, Any
+from typing import Generic, TypeVar, Self, Callable, Iterator, overload, Literal, Any, TypeAlias
 
 T = TypeVar("T")
+
+Factory: TypeAlias = Callable[[], T]
 
 class SingletonMeta(type):
     """Metaclass for singletons
