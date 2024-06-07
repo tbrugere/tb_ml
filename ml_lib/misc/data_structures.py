@@ -69,6 +69,11 @@ class Maybe(Generic[T]):
         if self.is_empty: return
         yield self.value
 
+    def __repr__(self):
+        if self.is_empty:
+            return "Maybe()"
+        return f"Maybe({self.value})"
+
 
 
 ############### dict functions
