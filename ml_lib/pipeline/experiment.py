@@ -347,10 +347,11 @@ class Experiment():
         model_.load_checkpoint(checkpoint.checkpoint)
         data = self.load_dataset(model_params.testing_set)
 
+        model_ = model_.to(torch.device(device))
         model_.run_tests()
 
-    def test_all(self, device:"torch.device|str" = "cpu", resume="latest")
-        for i in range(self.n_models): self.train(i, device)
+    def test_all(self, device:"torch.device|str" = "cpu", resume="latest"):
+        for i in range(self.n_models): self.test(i, device)
 
     def train_all(self, device:"torch.device|str" = "cpu", 
                   skip_finished: bool =True, 
