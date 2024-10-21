@@ -87,8 +87,8 @@ class ExperimentConfig(BaseModel):
         return cls.model_validate(yaml.safe_load(config_path.read_text()))
 
     model_config = ConfigDict(
-        ignored_types = (ft.cached_property,)
-        protected_namespaces = ()
+        ignored_types = (ft.cached_property,), 
+        protected_namespaces = (), 
         extra = "forbid"
     )
 
