@@ -3,16 +3,17 @@ Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
 from time import strftime
+from uuid_extensions import uuid7 # TODO: when this is merged into python, remove the dependency
 from typing import Iterable, Optional, Any, TYPE_CHECKING, Self, assert_never
 from dataclasses import dataclass, field
 from datetime import datetime
 from textwrap import indent
-from sqlalchemy import create_engine, select, text
-from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table, text
+from sqlalchemy import create_engine, select, text, MetaData
+from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table, text, Uuid
 from sqlalchemy.types import JSON, LargeBinary
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship, Session
 from ml_lib.misc.data_structures import Maybe
-from ml_lib.misc.torch_functions import move_batch_to
+from ml_lib.misc.torch_functions import move_batch_to, detach_object
 
 if TYPE_CHECKING:
     import torch
@@ -21,8 +22,13 @@ from ml_lib.models.base_classes import Model as Model_
 from ml_lib.models import register as model_register
 from ml_lib.misc import auto_repr
 
+
 class Base(DeclarativeBase):
     pass
+
+metadata_obj : MetaData= MetaData(schema="experiment_tracking_cache")
+class CacheBase(DeclarativeBase):
+    metadata = metadata_obj 
 
 def create_tables(engine):
     with engine.connect() as connection :
@@ -58,7 +64,7 @@ experiment_tests = Table(
 @auto_repr("id",  "model_type", "name", "description")
 class Model(Base):
     __tablename__ = 'models'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
 
     name: Mapped[Optional[str]] = mapped_column(String, unique=True)
     description: Mapped[Optional[str]] = mapped_column(String)
@@ -156,14 +162,14 @@ class Model(Base):
 
 class Checkpoint(Base):
     __tablename__ = 'checkpoints'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
     is_last: Mapped[bool] = mapped_column(Boolean)
     checkpoint: Mapped[bytes] = mapped_column(LargeBinary) 
 
-    model_id: Mapped[int] = mapped_column(Integer, ForeignKey('models.id'))
+    model_id: Mapped[Uuid] = mapped_column(Uuid, ForeignKey('models.id'))
     model: Mapped[Model] = relationship('Model', back_populates='checkpoints')
 
-    step_id: Mapped[int] = mapped_column(Integer, ForeignKey('steps.id'))
+    step_id: Mapped[Uuid] = mapped_column(Uuid, ForeignKey('steps.id'))
     step: Mapped["Training_step"] = relationship('Training_step', back_populates='checkpoints')
 
     tests: Mapped[list["Test"]] = relationship('Test', back_populates='checkpoint')
@@ -224,16 +230,16 @@ class Checkpoint(Base):
 @auto_repr("id", "experiment_id", "model_id", "steps", "model")
 class Training_run(Base):
     __tablename__ = 'training_runs'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
 
     training_parameters: Mapped[Optional[dict]] = mapped_column(JSON)
 
-    model_id: Mapped[int] = mapped_column(Integer, ForeignKey('models.id'))
+    model_id: Mapped[Uuid] = mapped_column(Uuid, ForeignKey('models.id'))
     model: Mapped[Model] = relationship('Model', back_populates='training_runs')
     n_steps: Mapped[int] = mapped_column(Integer)
     steps: Mapped[list["Training_step"]] = relationship('Training_step', back_populates='training_run')
 
-    experiment_id: Mapped[int] = mapped_column(Integer, ForeignKey('experiments.id'))
+    experiment_id: Mapped[Uuid] = mapped_column(Uuid, ForeignKey('experiments.id'))
     experiment: Mapped["Experiment"] = relationship('Experiment', back_populates="training_runs")
 
     def last_checkpoint(self, max_step_n: int|None=None, session=None) -> Checkpoint|None:
@@ -273,8 +279,8 @@ class Training_run(Base):
             time_info = "NEVER RAN."
         else:
             assert time_end is not None
-            time_start = strftime("%d/%m %H:%M", time_start)
-            time_end = strftime("%d/%m %H:%M", time_end)
+            time_start = time_start.strftime("%d/%m %H:%M")
+            time_end = stime_end.trftime("%d/%m %H:%M")
             time_info = f"{time_start} - {time_end}"
 
         last_checkpoint = self.last_checkpoint()
@@ -322,9 +328,9 @@ class Training_run(Base):
 @auto_repr("id", "training_run_id", "step", "epoch", "loss")
 class Training_step(Base):
     __tablename__ = 'steps'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
 
-    training_run_id: Mapped[int] = mapped_column(Integer, ForeignKey('training_runs.id'))
+    training_run_id: Mapped[int] = mapped_column(Uuid, ForeignKey('training_runs.id'))
     training_run: Mapped[Training_run] = relationship('Training_run', back_populates='steps')
 
     step: Mapped[int] = mapped_column(Integer)
@@ -343,9 +349,9 @@ class Training_step(Base):
 
 class Test(Base):
     __tablename__ = 'tests'
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
 
-    checkpoint_id: Mapped[int] = mapped_column(Integer, ForeignKey('checkpoints.id'))
+    checkpoint_id: Mapped[Uuid] = mapped_column(Integer, ForeignKey('checkpoints.id'))
     checkpoint: Mapped[Checkpoint] = relationship('Checkpoint', back_populates='tests')
 
     test_name: Mapped[str] = mapped_column(String)
@@ -361,7 +367,7 @@ class Test(Base):
 class Experiment(Base):
     __tablename__ = 'experiments'
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
     name: Mapped[str] = mapped_column(String, unique=True)
     description: Mapped[Optional[str]] = mapped_column(String)
 
@@ -371,12 +377,13 @@ class Experiment(Base):
                                                        # secondary='experiment_training_runs', 
                                                        # back_populates='experiments')
 
-############################################################
-##### non-synchronizing cache for step information. 
-############################################################
+"""
+**Cache for step information. Avoids synchronously pulling data from GPU too often**
+"""
 
 @dataclass
 class CacheCheckpoint():
+    """Checkpoint in the :class:`NonBlockingStepCache`"""
     checkpoint: bytes 
     model_id: int
     is_last: bool = False
@@ -406,6 +413,7 @@ class CacheCheckpoint():
 
 @dataclass
 class NonBlockingStep():
+    """Step information to be cached in the :class:`NonBlockingStepCache`"""
     training_run_id: int = field()
     step: int = field()
     epoch: int = field()
@@ -416,7 +424,9 @@ class NonBlockingStep():
 
     def __post_init__(self):
         if self.loss is not None:
-            self.loss = self.loss.to("cpu", non_blocking=True)
+            self.loss = self.loss.detach().to("cpu", non_blocking=True)
+        self.metrics = {i: detach_object(v, ignore_failure=True) 
+                        for i, v in self.metrics.items()}
         self.metrics = {i: move_batch_to(v, device="cpu", non_blocking=True, ignore_failure=True) 
                         for i, v in self.metrics.items()}
 
@@ -445,6 +455,10 @@ class NonBlockingStep():
         return d
 
 class NonBlockingStepCache():
+    """
+    **Cache for step information. Avoids synchronously pulling data from GPU too often**
+
+    """
     cached_values: list[NonBlockingStep] = []
 
     def __init__(self) -> None:
