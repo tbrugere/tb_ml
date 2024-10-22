@@ -45,7 +45,7 @@ class PositionalEmbeddings(nn.Module):
         """fractional timesteps are between 0 and 1"""
         *batch, = fractional_timesteps.shape
 
-        phases = self.angular_frequencies * fractional_timesteps   <= should_be(*batch, self.half_dim)
+        phases = self.angular_frequencies * fractional_timesteps[..., None]   <= should_be(*batch, self.half_dim)
         phases = phases[..., None].broadcast_to(*batch, self.half_dim, 2)
         phases[..., 1] += self.pi_over_two
 
