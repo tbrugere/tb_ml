@@ -36,6 +36,9 @@ class PositionalEmbeddings(nn.Module):
         )
         exponent = exponent / (half_dim)
         self.angular_frequencies= torch.exp(exponent)
+        self.register_buffer('angular_frequencies', self.angular_frequencies)
+        self.pi_over_two = torch.tensor(math.pi / 2)
+        self.register_buffer('pi_over_two', self.pi_over_two)
 
     @torch.no_grad
     def _compute_cache(self, integer_len):
