@@ -56,8 +56,8 @@ class ModelConfig(BaseModel):
 
 class DatasetConfig(BaseModel):
     type: str = Field()
-    params: dict[str, Any] = Field(default={})
-    transforms: list[dict|str]
+    params: dict[str, Any] = Field(default_factory=dict)
+    transforms: list[dict|str] = Field(default_factory=list)
 
     def load_dataset(self, additional_params = None,
                      dataset_register=dataset_register, 
