@@ -17,6 +17,7 @@ class PositionalEmbeddings(nn.Module):
 
     def __init__(self, dim, max_period=10000, *,  integer_len=None):
         assert dim % 2 == 0, 'dim must be even'
+        super().__init__()
         self.half_dim = dim // 2
         self.integer_len = integer_len
         self.max_period = max_period
