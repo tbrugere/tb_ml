@@ -280,7 +280,7 @@ class Training_run(Base):
         else:
             assert time_end is not None
             time_start = time_start.strftime("%d/%m %H:%M")
-            time_end = stime_end.trftime("%d/%m %H:%M")
+            time_end = time_end.trftime("%d/%m %H:%M")
             time_info = f"{time_start} - {time_end}"
 
         last_checkpoint = self.last_checkpoint()
