@@ -86,6 +86,28 @@ def num_parameters_tree(model: torch.nn.Module, depth=3,
 
     return eventually_tuple(hr_string, *eventually_return_total)
 
+def detach_object(batch, ignore_failure=False):
+    match batch:
+        case torch.Tensor():
+            return batch.detach()
+        case batch if hasattr(batch, "detach"):
+            return batch.detach()
+        case dict():
+            return {key: value.detach() 
+                    for key, value in batch.items()}
+        case batch if hasattr(batch, "_asdict"):
+            t_ = type(batch)
+            return t_(detach_object(batch._asdict()))
+        case batch if hasattr(batch, "asdict"):
+            t_ = type(batch)
+            return t_(detach_object(batch.asdict()))
+        case (*seq,):
+            return type(seq)(detach_object(i) for i in seq)
+        case _ if not ignore_failure:
+            raise ValueError(f"Couldn't find how to detach object {batch}")
+        case _:
+            return batch
+
 
 def move_batch_to(batch, device, non_blocking=False, ignore_failure=False):
     match batch:
