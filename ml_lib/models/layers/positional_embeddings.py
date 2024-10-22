@@ -24,8 +24,8 @@ class PositionalEmbeddings(nn.Module):
         self.cache = None
         self._init_frequencies()
         if integer_len is not None:
-            self.cache = self._compute_cache(integer_len)
-            self.register_buffer('cache', self.cache)
+            cache = self._compute_cache(integer_len)
+            self.register_buffer('cache', cache)
 
 
     @torch.no_grad
@@ -35,10 +35,10 @@ class PositionalEmbeddings(nn.Module):
             start=0, end=half_dim, dtype=torch.float32, 
         )
         exponent = exponent / (half_dim)
-        self.angular_frequencies= torch.exp(exponent)
-        self.register_buffer('angular_frequencies', self.angular_frequencies)
-        self.pi_over_two = torch.tensor(math.pi / 2)
-        self.register_buffer('pi_over_two', self.pi_over_two)
+        angular_frequencies= torch.exp(exponent)
+        self.register_buffer('angular_frequencies', angular_frequencies)
+        pi_over_two = torch.tensor(math.pi / 2)
+        self.register_buffer('pi_over_two', pi_over_two)
 
     @torch.no_grad
     def _compute_cache(self, integer_len):
