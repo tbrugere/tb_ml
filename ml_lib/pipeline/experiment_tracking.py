@@ -11,7 +11,7 @@ from textwrap import indent
 from sqlalchemy import create_engine, select, text, MetaData
 from sqlalchemy import ForeignKey, String, JSON, Column, Integer, Float, Boolean, DateTime, PickleType, Select, Table, text, Uuid
 from sqlalchemy.types import JSON, LargeBinary
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship, Session
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, object_session, relationship, Session, MappedAsDataclass
 from ml_lib.misc.data_structures import Maybe
 from ml_lib.misc.torch_functions import move_batch_to, detach_object
 
@@ -23,7 +23,7 @@ from ml_lib.models import register as model_register
 from ml_lib.misc import auto_repr
 
 
-class Base(DeclarativeBase):
+class Base(DeclarativeBase, ):
     pass
 
 metadata_obj : MetaData= MetaData(schema="experiment_tracking_cache")
@@ -64,7 +64,7 @@ experiment_tests = Table(
 @auto_repr("id",  "model_type", "name", "description")
 class Model(Base):
     __tablename__ = 'models'
-    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default=uuid7)
 
     name: Mapped[Optional[str]] = mapped_column(String, unique=True)
     description: Mapped[Optional[str]] = mapped_column(String)
@@ -162,7 +162,7 @@ class Model(Base):
 
 class Checkpoint(Base):
     __tablename__ = 'checkpoints'
-    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default=uuid7)
     is_last: Mapped[bool] = mapped_column(Boolean)
     checkpoint: Mapped[bytes] = mapped_column(LargeBinary) 
 
@@ -230,7 +230,7 @@ class Checkpoint(Base):
 @auto_repr("id", "experiment_id", "model_id", "steps", "model")
 class Training_run(Base):
     __tablename__ = 'training_runs'
-    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default=uuid7)
 
     training_parameters: Mapped[Optional[dict]] = mapped_column(JSON)
 
@@ -328,7 +328,7 @@ class Training_run(Base):
 @auto_repr("id", "training_run_id", "step", "epoch", "loss")
 class Training_step(Base):
     __tablename__ = 'steps'
-    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default=uuid7)
 
     training_run_id: Mapped[int] = mapped_column(Uuid, ForeignKey('training_runs.id'))
     training_run: Mapped[Training_run] = relationship('Training_run', back_populates='steps')
@@ -349,7 +349,7 @@ class Training_step(Base):
 
 class Test(Base):
     __tablename__ = 'tests'
-    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default=uuid7)
 
     checkpoint_id: Mapped[Uuid] = mapped_column(Integer, ForeignKey('checkpoints.id'))
     checkpoint: Mapped[Checkpoint] = relationship('Checkpoint', back_populates='tests')
@@ -367,7 +367,7 @@ class Test(Base):
 class Experiment(Base):
     __tablename__ = 'experiments'
 
-    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default_factory=uuid7)
+    id: Mapped[Uuid] = mapped_column(Uuid, primary_key=True, default=uuid7)
     name: Mapped[str] = mapped_column(String, unique=True)
     description: Mapped[Optional[str]] = mapped_column(String)
 
