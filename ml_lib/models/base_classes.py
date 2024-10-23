@@ -230,14 +230,14 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         if isinstance(checkpoint, bytes):
             checkpoint = BytesIO(checkpoint)
         if not isinstance(checkpoint, dict):
-            checkpoint = torch.load(checkpoint, map_location=self.device)
+            checkpoint = torch.load(checkpoint, map_location=self.device, weights_only=True)
         assert isinstance(checkpoint, dict)
         self.load_state_dict(checkpoint["model_state_dict"], strict=strict)
 
     @classmethod
     def from_checkpoint(cls, checkpoint: Path|str|BytesIO, device=torch.device("cpu")):
         if not isinstance(checkpoint, dict):
-            checkpoint = torch.load(checkpoint, map_location=device)
+            checkpoint = torch.load(checkpoint, map_location=device, weights_only=True)
         assert isinstance(checkpoint, dict)
         model = cls(name=checkpoint.get("name", None), **checkpoint["hyperparameters"]).to(device) # type: ignore
         model.load_state_dict(checkpoint["model_state_dict"]) # type: ignore

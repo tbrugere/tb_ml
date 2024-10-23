@@ -2,7 +2,6 @@
 Experiment tracking / saving (with sqlite)
 Still writing, not even nearly production ready (or even working) dont use
 """
-from time import strftime
 from uuid_extensions import uuid7 # TODO: when this is merged into python, remove the dependency
 from typing import Iterable, Optional, Any, TYPE_CHECKING, Self, assert_never
 from dataclasses import dataclass, field
@@ -111,7 +110,7 @@ class Model(Base):
 
     def has_finished_training(self, with_checkpoint=True):
         if with_checkpoint:
-            return self.latest_checkpoint() is not None
+            return self.latest_checkpoint(allow_nonfinal_checkpoint=False) is not None
         else:
             raise NotImplementedError("What's the point of checking if the training finished but didn't checkpoint at the end ???")
 
@@ -281,7 +280,7 @@ class Training_run(Base):
             assert time_end is not None
             time_start = time_start.strftime("%d/%m %H:%M")
             time_end = time_end.strftime("%d/%m %H:%M")
-            time_info = f"{time_start} - {time_end}"
+            time_info = f"[{time_start} --- {time_end}]"
 
         last_checkpoint = self.last_checkpoint()
         if last_checkpoint is None:
