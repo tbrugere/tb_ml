@@ -161,7 +161,7 @@ def update_all_table_constraints(con, ):
                 if table.endswith("_old"): continue
                 con.execute(f"DROP TABLE {table}_old")
 
-if __name__ == "__main__":
+def main():
     if len(sys.argv) != 2:
         print("Usage: python migrate_to_uuid.py <db_path>")
         sys.exit(1)
@@ -180,3 +180,7 @@ if __name__ == "__main__":
         log.error("An error occured, restoring backup")
         restore_backup(con, db_path)
         raise
+
+
+if __name__ == "__main__":
+    main()
