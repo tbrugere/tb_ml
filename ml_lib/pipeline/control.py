@@ -236,12 +236,23 @@ class CommandLineExternal(CommandLine):
 
     @classmethod
     def from_commandline(cls, args=None) -> Self:
+        from pathlib import Path
         from importlib import import_module
+        from importlib.util import spec_from_file_location, module_from_spec
         if args is None:
             args = cls.argument_parser().parse_args()
         package = args.package
-        import_module(package)
+        if Path(package).exists():
+            spec = spec_from_file_location(package, package)
+            if spec is None:
+                raise ValueError(f"Could not load package {package}")
+            module = module_from_spec(spec)
+            spec.loader.exec_module(module)
+        else: # try importing from path
+            module = import_module(package)
         # TODO: get registers from the package
+        # eg module.dataset_register , module.transform_register, module.model_register ...
+        # and pass them down to the experiment
         return super().from_commandline(args)
 
 def run_pipeline():
