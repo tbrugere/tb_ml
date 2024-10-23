@@ -244,5 +244,5 @@ class CommandLineExternal(CommandLine):
         # TODO: get registers from the package
         return super().from_commandline(args)
 
-def main():
+def run_pipeline():
     CommandLineExternal.from_commandline().run()

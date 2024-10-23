@@ -42,3 +42,4 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 ml_lib_migrate_db = "ml_lib_scripts.migrate_to_uuid:main"
 ml_lib_json_schemas = "ml_lib_scripts.json_schemas:run"
+ml_lib_pipeline = "ml_lib.pipeline.control:run_pipeline"
