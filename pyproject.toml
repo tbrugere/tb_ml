@@ -5,7 +5,7 @@ description = "boilerplate for ml projects"
 authors = ["Tristan BRUGÈRE <67050900+nephanth@users.noreply.github.com>"]
 license = "Cecill-B"
 readme = "README.md"
-packages = [{include = "ml_lib"}]
+packages = [{include = "ml_lib"}, {include = "ml_lib_scripts"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -38,3 +38,7 @@ tqdm = "^4.64.1"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+ml_lib_migrate_db = "ml_lib_scripts.migrate_to_uuid:main"
+ml_lib_json_schemas = "ml_lib_scripts.json_schemas:run"

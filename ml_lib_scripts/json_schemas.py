@@ -27,9 +27,11 @@ def main(which_schema, use_yaml):
         import json
         json.dump(schema, stdout)
 
-
-
-if __name__ == "__main__":
+def run():
     parser = argument_parser()
     args = parser.parse_args()
     main(args.which, args.yaml)
+
+
+if __name__ == "__main__":
+    run()

@@ -163,7 +163,7 @@ def update_all_table_constraints(con, ):
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: python migrate_to_uuid.py <db_path>")
+        print(f"Usage: {sys.argv[0]} <db_path>")
         sys.exit(1)
     db_path = sys.argv[1]
     log_basic_config(level="DEBUG")
