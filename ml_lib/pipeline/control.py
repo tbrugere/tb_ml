@@ -9,10 +9,12 @@ from pathlib import Path
 from logging import getLogger
 import typing; log = getLogger("__main__")
 
+
 from ml_lib.misc.context_managers import set_num_threads, set_log_level, torch_profile_auto_save
 
 if TYPE_CHECKING:
     import torch
+    import argparse
 
 from ml_lib.pipeline.experiment import Experiment, ExperimentConfig
 
@@ -111,9 +113,10 @@ class CommandLine():
         return Session(db_engine, autoflush=False) 
 
     @classmethod
-    def from_commandline(cls) -> Self:
-        argument_parser = cls.argument_parser()
-        args = argument_parser.parse_args()
+    def from_commandline(cls, args=None) -> Self:
+        if args is None:
+            argument_parser = cls.argument_parser()
+            args = argument_parser.parse_args()
         return cls(args.config, 
                    commands=args.command, 
                    device=args.device, 
@@ -125,13 +128,14 @@ class CommandLine():
                    )
 
     
-    @staticmethod
-    def argument_parser():
+    @classmethod
+    def argument_parser(cls, parser: "argparse.ArgumentParser|None"=None):
         import argparse
         from pathlib import Path
         import os
 
-        parser = argparse.ArgumentParser()
+        if parser is None:
+            parser = argparse.ArgumentParser()
 
         parser.add_argument("config", 
                             type=Path, )
@@ -220,6 +224,25 @@ class CommandLine():
             yield
 
 
+class CommandLineExternal(CommandLine):
+    @classmethod
+    def argument_parser(cls, parser: "argparse.ArgumentParser|None"=None):
+        from argparse import ArgumentParser
+        if parser is None:
+            parser = ArgumentParser()
+        parser.add_argument("package", type=str)
+        parser = super().argument_parser(parser)
+        return parser
 
+    @classmethod
+    def from_commandline(cls, args=None) -> Self:
+        from importlib import import_module
+        if args is None:
+            args = cls.argument_parser().parse_args()
+        package = args.package
+        import_module(package)
+        # TODO: get registers from the package
+        return super().from_commandline(args)
 
-
+def main():
+    CommandLineExternal.from_commandline().run()
