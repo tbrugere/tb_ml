@@ -80,6 +80,7 @@ class DiffusionTrainingHelperMixin():
                 return x - noised_x
             case _:
                 raise ValueError(f"Unknown prediction type {self._diff_train_prediction_type}")
+
     
     @torch.no_grad()
     def apply_noise(self, x, noise, timesteps):
@@ -96,6 +97,10 @@ class DiffusionTrainingHelperMixin():
 class RectifiedFlowMixin(DiffusionTrainingHelperMixin):
     def _apply_noise(self, x, noise, timesteps):
         return (1 - timesteps) * x + timesteps * noise
+
+    def epsilon_to_v(self, x, epsilon):
+        """convert epsilon to v"""
+        return x - epsilon
 
 class ExplodingMixin(DiffusionTrainingHelperMixin):
     def __init__(self, prediction_type: PredictionType = "noise", 
@@ -114,5 +119,3 @@ class ExplodingMixin(DiffusionTrainingHelperMixin):
 
         
         
-
-
