@@ -50,13 +50,13 @@ class ExplodingNoise(DiffusionTrainingNoiser):
     def _compute_b_t(self, timesteps):
         return torch.exp(timesteps)
 
-    def _apply_noise(self, x, noise, timesteps):
+    def apply_noise(self, x, noise, timesteps):
         b_t = self._compute_b_t(timesteps)
 
         return x + b_t * noise
 
 class DDPMCosineNoise(DiffusionTrainingNoiser):
-    def _apply_noise(self, x, noise, timesteps):
+    def apply_noise(self, x, noise, timesteps):
         with torch.no_grad():
             sqrt_alpha_t = torch.cos(timesteps * torch.pi / 2)
             sqrt_1_alpha_t = torch.sin(timesteps * torch.pi / 2)
