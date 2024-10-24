@@ -76,7 +76,7 @@ class DiffusionTrainingHelperMixin():
 
     
 
-    def __init__(self, prediction_type: PredictionType = "noise", timestep_sampling_method: Timestep_sampling_method = "uniform", timesteps: int|None = None, noise_type: Literal["diffusion", "exploding", "rectified_flow"]):
+    def __init__(self, *,  prediction_type: PredictionType = "noise", timestep_sampling_method: Timestep_sampling_method = "uniform", timesteps: int|None = None, noise_type: Literal["cosine", "exploding", "rectified_flow"]):
         self._diff_train_prediction_type = prediction_type
         self._diff_train_timestep_sampling_method = timestep_sampling_method
         if not self._integer_timesteps and timesteps is not None:
@@ -86,7 +86,7 @@ class DiffusionTrainingHelperMixin():
         self._n_timesteps = timesteps
 
         match noise_type:
-            case "diffusion": self._noiser = DDPMCosineNoise()
+            case "cosine": self._noiser = DDPMCosineNoise()
             case "exploding": self._noiser = ExplodingNoise()
             case "rectified_flow": self._noiser = RectifiedFlowNoise()
             case _: raise ValueError(f"Unknown noise type {noise_type}")
