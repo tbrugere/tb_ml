@@ -10,7 +10,7 @@ from logging import getLogger
 import typing; log = getLogger("__main__")
 
 
-from ml_lib.misc.context_managers import set_num_threads, set_log_level, torch_profile_auto_save
+from ml_lib.misc.context_managers import set_num_threads, set_log_level, torch_profile_auto_save, torch_set_sync_debug_mode
 
 if TYPE_CHECKING:
     import torch
@@ -59,13 +59,15 @@ class CommandLine():
     # debugging and utilities
     log_level: int
     profile: bool = False
+    debug_sync: bool = False
 
     def __init__(self, experiment: PathLike, commands, *,
                  device: "str|torch.device|None"=None, 
                  database: PathLike, resume:str, 
                  only_model: str|int|None = None, 
                  log_level: int = logging.WARNING, 
-                 profile: bool= False): 
+                 profile: bool= False, 
+                 debug_sync: bool = False): 
         import torch
         self.experiment_config=Path(experiment)
         if device is None:
@@ -81,6 +83,7 @@ class CommandLine():
         self.only_model = only_model
         self.log_level = log_level
         self.profile = profile
+        self.debug_sync = debug_sync
         
     def run(self):
         with self.database_session() as db_session:
@@ -124,7 +127,8 @@ class CommandLine():
                    resume=args.resume, 
                    only_model = args.only_model, 
                    log_level= args.loglevel, 
-                   profile= args.profile
+                   profile= args.profile, 
+                   debug_sync= args.debug_sync
                    )
 
     
@@ -162,6 +166,12 @@ class CommandLine():
         parser.add_argument(
             "--profile",
             help="use profiler", 
+            action=argparse.BooleanOptionalAction,
+            default=False,
+        )
+        parser.add_argument(
+            "--debug-sync",
+            help="use synchronization debug mode", 
             action=argparse.BooleanOptionalAction,
             default=False,
         )
@@ -217,6 +227,10 @@ class CommandLine():
             from torch.profiler import profile, record_function, ProfilerActivity
             profiler = profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True)
             managers.append(torch_profile_auto_save(profiler, "trace.json"))
+
+        # eventually setup torch sync debug mode
+        if self.debug_sync:
+            managers.append(torch_set_sync_debug_mode())
 
         with contextlib.ExitStack() as stack:
             for m in managers:

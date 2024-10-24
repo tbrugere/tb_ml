@@ -35,3 +35,13 @@ def torch_profile_auto_save(profiler, trace_file="trace.json"):
         else:
             logging.warning("Could not export stack trace, profiler didn't get constructed correctly, or got destroyed")
 
+@contextlib.contextmanager
+def torch_set_sync_debug_mode(debug_mode=1):
+    import torch
+    import torch.cuda
+    old_mode = torch.cuda.get_sync_debug_mode()
+    try:
+        torch.cuda.set_sync_debug_mode(debug_mode)
+        yield
+    finally:
+        torch.cuda.set_sync_debug_mode(old_mode)
