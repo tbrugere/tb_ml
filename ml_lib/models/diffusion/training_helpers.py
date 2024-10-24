@@ -33,6 +33,36 @@ def betas_from_alpha_bars(alpha_bars, clip= .999):
     betas = betas.clip(0, clip)
     return betas
 
+class DiffusionTrainingNoiser():
+    def apply_noise(self, x, noise, timesteps):
+        del x, noise, timesteps
+        raise NotImplementedError
+
+class RectifiedFlowNoise(DiffusionTrainingNoiser):
+    def apply_noise(self, x, noise, timesteps):
+        return (1 - timesteps) * x + timesteps * noise
+
+    def epsilon_to_v(self, x, epsilon):
+        """convert epsilon to v"""
+        return x - epsilon
+
+class ExplodingNoise(DiffusionTrainingNoiser):
+    def _compute_b_t(self, timesteps):
+        return torch.exp(timesteps)
+
+    def _apply_noise(self, x, noise, timesteps):
+        b_t = self._compute_b_t(timesteps)
+
+        return x + b_t * noise
+
+class DDPMCosineNoise(DiffusionTrainingNoiser):
+    def _apply_noise(self, x, noise, timesteps):
+        with torch.no_grad():
+            sqrt_alpha_t = torch.cos(timesteps * torch.pi / 2)
+            sqrt_1_alpha_t = torch.sin(timesteps * torch.pi / 2)
+        return sqrt_alpha_t * x + sqrt_1_alpha_t * noise
+
+
 class DiffusionTrainingHelperMixin():
     """
     Mixin class for diffusion models that provides trainiing utilities
@@ -42,8 +72,11 @@ class DiffusionTrainingHelperMixin():
     _diff_train_timestep_sampling_method: Timestep_sampling_method = "uniform"
     _integer_timesteps: ClassVar[bool] = False
     _n_timesteps: int|None = None
+    _noiser: DiffusionTrainingNoiser
 
-    def __init__(self, prediction_type: PredictionType = "noise", timestep_sampling_method: Timestep_sampling_method = "uniform", timesteps: int|None = None):
+    
+
+    def __init__(self, prediction_type: PredictionType = "noise", timestep_sampling_method: Timestep_sampling_method = "uniform", timesteps: int|None = None, noise_type: Literal["diffusion", "exploding", "rectified_flow"]):
         self._diff_train_prediction_type = prediction_type
         self._diff_train_timestep_sampling_method = timestep_sampling_method
         if not self._integer_timesteps and timesteps is not None:
@@ -51,6 +84,12 @@ class DiffusionTrainingHelperMixin():
         elif self._integer_timesteps and timesteps is None: 
             raise ValueError("timesteps should be provided if the model uses integer timesteps")
         self._n_timesteps = timesteps
+
+        match noise_type:
+            case "diffusion": self._noiser = DDPMCosineNoise()
+            case "exploding": self._noiser = ExplodingNoise()
+            case "rectified_flow": self._noiser = RectifiedFlowNoise()
+            case _: raise ValueError(f"Unknown noise type {noise_type}")
 
 
     def sample_timesteps(self, batch_size: int, device: torch.device):
@@ -91,31 +130,8 @@ class DiffusionTrainingHelperMixin():
 
     def _apply_noise(self, x, noise, timesteps):
         """apply noise to the input point. Reimplement this method in the child class if needed"""
-        del x, noise, timesteps
-        raise NotImplementedError("This method should be implemented by the child class")
+        return self._noiser.apply_noise(x, noise, timesteps)
 
-class RectifiedFlowMixin(DiffusionTrainingHelperMixin):
-    def _apply_noise(self, x, noise, timesteps):
-        return (1 - timesteps) * x + timesteps * noise
-
-    def epsilon_to_v(self, x, epsilon):
-        """convert epsilon to v"""
-        return x - epsilon
-
-class ExplodingMixin(DiffusionTrainingHelperMixin):
-    def __init__(self, prediction_type: PredictionType = "noise", 
-                 timestep_sampling_method: Timestep_sampling_method = "uniform", 
-                 timesteps: int|None = None, 
-                 ):
-        super().__init__(prediction_type, timestep_sampling_method, timesteps)
-
-    def _compute_b_t(self, timesteps):
-        return torch.exp(timesteps)
-
-    def _apply_noise(self, x, noise, timesteps):
-        b_t = self._compute_b_t(timesteps)
-
-        return x + b_t * noise
 
         
         
