@@ -18,4 +18,10 @@ This is a work in progress and relatively unstable,
 - [x] A lot of miscelanneous features such as printing model sizes as trees, keeping track of a model's device, freezing models, checking all given input to a model are on the right device, automatically creating tensors on the right device, etc.
 - [ ] Job control for sending jobs to several machines / vms / cloud workers
 
+## Installation
+
+```commandline
+$ pip install git+https://github.com/tbrugere/ml_lib
+```
+
 
