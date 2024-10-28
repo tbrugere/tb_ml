@@ -275,7 +275,7 @@ class Training_run(Base):
         name_info = f"training run {self.id}"
         time_start, time_end = self.time_span()
         if time_start is None:
-            time_info = "NEVER RAN."
+            time_info = "NEVER RAN"
         else:
             assert time_end is not None
             time_start = time_start.strftime("%d/%m %H:%M")
@@ -294,7 +294,7 @@ class Training_run(Base):
 
         match last_checkpoint:
             case None: status_icon = "✗"
-            case Checkpoint(is_last=True): status_icon = "✓"
+            case Checkpoint() if self.is_finished: status_icon = "✓"
             case Checkpoint(): status_icon = "…"
             case something_else: assert_never(something_else)
 
