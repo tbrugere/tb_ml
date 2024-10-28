@@ -241,13 +241,14 @@ class Training_run(Base):
     experiment_id: Mapped[Uuid] = mapped_column(Uuid, ForeignKey('experiments.id'))
     experiment: Mapped["Experiment"] = relationship('Experiment', back_populates="training_runs")
 
-    def last_checkpoint(self, max_step_n: int|None=None, session=None) -> Checkpoint|None:
+    def last_checkpoint(self, max_step_n: int|None=None, session=None, allow_nonfinal_checkpoint=True) -> Checkpoint|None:
         if session is None:
             session = Session.object_session(self)
         assert session is not None
         query = select(Checkpoint)\
                 .join(Checkpoint.step)\
                 .where(Training_step.training_run == self)
+        if not allow_nonfinal_checkpoint: query = query.where(Checkpoint.is_last == True)
         if max_step_n is not None:
             query = query.where(Training_step.step <= max_step_n)
         query = query.order_by(Training_step.step.desc()).limit(1)
@@ -259,7 +260,7 @@ class Training_run(Base):
 
     def is_finished(self, with_checkpoint=True):
         if with_checkpoint:
-            return self.last_checkpoint() is not None
+            return self.last_checkpoint(allow_nonfinal_checkpoint=False) is not None
         else:
             raise NotImplementedError("What's the point of checking if the training finished but didn't checkpoint at the end ???")
 
