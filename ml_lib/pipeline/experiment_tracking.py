@@ -152,7 +152,7 @@ class Model(Base):
             case something_else: assert_never(something_else)
 
         if long:
-            tr_info_str = "\n—".join(f"- {i}" for i in tr_info_strs)
+            tr_info_str = "\n".join(tr_info_strs)
             tr_info_str = "\n" + indent(tr_info_str, prefix="   ")
         else: tr_info_str = ""
 
@@ -265,7 +265,7 @@ class Training_run(Base):
 
     def time_span(self):
         from sqlalchemy import func
-        query = select(func.min(Training_step.step_time), func.max(Training_step.step_time))
+        query = select(func.min(Training_step.step_time), func.max(Training_step.step_time)).where(Training_step.training_run_id == self.id)
         session = Session.object_session(self)
         if session is None: raise ValueError("Object is not in a database session, cannot pull info")
         time_start, time_end = session.execute(query).one()
@@ -280,12 +280,13 @@ class Training_run(Base):
             assert time_end is not None
             time_start = time_start.strftime("%d/%m %H:%M")
             time_end = time_end.strftime("%d/%m %H:%M")
-            time_info = f"[{time_start} --- {time_end}]"
+            time_info = f"[{time_start} -- {time_end}]"
 
         last_checkpoint = self.last_checkpoint()
         if last_checkpoint is None:
             last_checkpoint_n = "NO CHECKPOINT"
-        else: last_checkpoint_n = last_checkpoint.step.step
+        else: last_checkpoint_n = last_checkpoint.step.step + 1
+        # add 1 to get the number of steps, not the step number
 
         n_steps= self.n_steps
         
