@@ -364,6 +364,9 @@ class Trainer():
         log.info(f"resuming from step {checkpoint.step.step}") 
         self.model.load_checkpoint(checkpoint.checkpoint)
         step_num = checkpoint.step.step + 1# we saved *after* step step_num, so we restart at step_num + 1
+        self.set_step_num(step_num)
+
+    def set_step_num(self, step_num):
 
         epoch, epoch_step = divmod(step_num, len(self.data))
 

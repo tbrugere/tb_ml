@@ -282,7 +282,7 @@ def generate_report(*,
     intermediate_notebook_node = nbformat.read(intermediate_notebook, as_version=4)
 
     remove_processor = TagRemovePreprocessor()
-    remove_tags = []
+    remove_tags = ["no_report"]
     if not include_graphs: remove_tags.append("statistics")
     if not include_examples: remove_tags.append("examples")
     remove_processor.remove_cell_tags = remove_tags
