@@ -211,6 +211,9 @@ class Experiment():
     @property
     def n_models(self):
         return len( self.config.models )
+
+    def list_models(self):
+        return [m.name for m in self.config.models]
     ####################################################################
     ################ database stuff ####################################
 
