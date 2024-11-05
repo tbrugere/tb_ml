@@ -6,7 +6,7 @@ from ml_lib.pipeline.experiment_tracking import Model as DBModel
 from ml_lib.misc.data_structures import NotSpecified
 
 def get_losses(training_run):
-    return np.array([s.loss for s in training_run.steps])
+    return np.array([s.loss for s in training_run.steps if s.loss is not None])
 
 def compute_running_mean(losses, rm_size):
     from scipy.ndimage import uniform_filter1d
@@ -54,7 +54,7 @@ def display_model_loss(model_name, db_engine, training_run_num=-1, **drawing_arg
         db_model = DBModel.get_by_name(model_name, session)
         assert db_model is not None
         training_runs = db_model.training_runs
-        tr = training_runs[-1]
+        tr = training_runs[training_run_num]
         losses = get_losses(tr)
 
     display_loss_array(losses, **drawing_args, name=model_name)
