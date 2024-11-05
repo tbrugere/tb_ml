@@ -161,6 +161,7 @@ class Trainer():
         ################ Setup Environments
         self.global_env = Environment()
         self.global_env.record_dict(environment_variables)
+        self.global_env.record("env_type", "global")
         self.epoch_env = HierarchicEnvironment(parent=self.global_env)
         self.iter_env = HierarchicEnvironment(parent=self.epoch_env)
 
@@ -250,6 +251,7 @@ class Trainer():
     def step(self, batch):
         self.iter_env.reset()
         self.iter_env.record_dict(dict(
+            env_type="iteration",
             iteration=self.iteration_n
         ))
         self.model.train()
@@ -285,6 +287,7 @@ class Trainer():
     def epoch(self):
         self.epoch_env.reset()
         self.epoch_env.record_dict(dict(
+            env_type="epoch",
             last_iteration=self.iteration_n, 
             epoch= self.epoch_n
         ))
@@ -367,6 +370,7 @@ class Trainer():
         self.set_step_num(step_num)
 
     def set_step_num(self, step_num):
+        """Sets the step number. Useful for resuming from a checkpoint"""
 
         epoch, epoch_step = divmod(step_num, len(self.data))
 

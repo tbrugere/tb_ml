@@ -45,16 +45,22 @@ class TrainingHook(HasEnvironmentMixin):
     __post_init__ = HasEnvironmentMixin.__init__
 
     def __call__(self):
-        if self.interval is None: 
+        env_type = self.env.get("env_type")
+        if env_type == "global": 
+            should_run = 1
             self.env.environment.run_function(self._protected_hook) #this is for end hooks (only run once)
-        n_iteration = self.env.iteration
+        else:
+            assert self.interval is not None, f"This hook has no interval, but is called as a {env_type} hook"
+            if env_type == "epoch":
+                n_epoch = self.env.epoch
+                should_run = n_epoch % self.interval == 0
+            elif env_type == "iteration":
+                n_iteration = self.env.iteration
+                should_run = n_iteration % self.interval == 0
+            else: raise ValueError(f"Unknown env_type {env_type}")
 
-        new_values = None
-        if n_iteration % self.interval == 0:
+        if should_run:
             self.env.environment.run_function(self._protected_hook)
-
-        if new_values is None:
-            new_values = {}
 
     def _protected_hook(self):
         if self.absolutely_necessary: 
