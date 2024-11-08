@@ -34,6 +34,8 @@ DONT_CHECK = "dontcheck"
 Hyperparameter = Annotated[T, IS_HYPERPARAM]
 DontCheck = Annotated[T, DONT_CHECK]
 
+class CheckpointNotFoundError(Exception): pass
+
 
 class ModelMeta(type):
     """
@@ -248,11 +250,11 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         assert session is not None
         db_object = self.get_database_object(session)
         if db_object is None:
-            raise ValueError("Model not in database, cannot load checkpoint")
+            raise CheckpointNotFoundError("Model not in database, cannot load checkpoint")
         latest_checkpoint = db_object.latest_checkpoint(session, 
                                 allow_nonfinal_checkpoint=allow_nonfinal_checkpoint)
         if latest_checkpoint is None:
-            raise ValueError("No checkpoint found")
+            raise CheckpointNotFoundError("No checkpoint found")
         self.load_checkpoint(latest_checkpoint.checkpoint)
 
     """
