@@ -69,7 +69,7 @@ class MultiInputLinear(nn.Module):
     """
 
     linears: nn.ModuleList
-    bias: nn.Parameter|None = None
+    bias: Tensor|None
 
     def __init__(self, input_dims: Sequence[int], output_dim: int, bias=True, singlebias=False):
         super().__init__()
@@ -77,6 +77,7 @@ class MultiInputLinear(nn.Module):
             self.bias = nn.Parameter(Tensor(output_dim))
             nn.init.xavier_normal(self.bias)
             bias = False
+        else: self.bias = None
         self.linears = nn.ModuleList([
             nn.Linear(input_dim, output_dim, bias=bias) for input_dim in input_dims
         ])
