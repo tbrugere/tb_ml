@@ -75,7 +75,7 @@ class MultiInputLinear(nn.Module):
         super().__init__()
         if bias and singlebias:
             self.bias = nn.Parameter(Tensor(output_dim))
-            nn.init.xavier_normal(self.bias)
+            nn.init.normal_(self.bias)
             bias = False
         else: self.bias = None
         self.linears = nn.ModuleList([
