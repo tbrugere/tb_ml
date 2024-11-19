@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 import functools as ft
 from copy import deepcopy
+from contextlib import contextmanager
 import itertools as it
 from io import BytesIO, StringIO
 from logging import getLogger; log = getLogger(__name__)
@@ -34,6 +35,7 @@ DONT_CHECK = "dontcheck"
 Hyperparameter = Annotated[T, IS_HYPERPARAM]
 DontCheck = Annotated[T, DONT_CHECK]
 
+class ModelInitializationError(Exception): pass
 class CheckpointNotFoundError(Exception): pass
 
 
@@ -96,6 +98,7 @@ class ModelMeta(type):
         for hyperparameter in model_class.list_hyperparameters():
             if hyperparameter in reserved_names:
                 raise ValueError(f"Hyperparameter {hyperparameter} is reserved")
+
 
 
 class HasLossMixin(Generic[LossParameters]):
@@ -161,7 +164,8 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
         self.db_session = db_session
         if db_session is not None:
             self.sync_with_database_object(db_session)
-        self.__setup__()
+        with self._check_init_recursion(): # used to avoid infinite recursion
+            self.__setup__()
 
     def __setup__(self):
         """
@@ -517,6 +521,17 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     Misc
     ----
     """
+    @contextmanager
+    def _check_init_recursion(self):
+        """
+        Context manager to check that the model doesn't recurse into its __init__() function"""
+        if hasattr(self, "_currently_initializing"):
+            raise ModelInitializationError("Model.__init__() was called from __setup__() function. This is not supposed to happen. Did you forget a super().__init__() call in the __setup__()?")
+        try:
+            self._currently_initializing = True
+            yield
+        finally:
+            del self._currently_initializing
 
     @classmethod
     def get_model_type(cls):
@@ -531,6 +546,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
             s.write(f"    {attr_name}={value},\n")
         s.write(")")
         return s.getvalue()
+
 
 
 
