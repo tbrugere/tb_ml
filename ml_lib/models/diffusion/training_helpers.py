@@ -35,8 +35,15 @@ def betas_from_alpha_bars(alpha_bars, clip= .999):
 
 class DiffusionTrainingNoiser():
     def apply_noise(self, x, noise, timesteps):
-        del x, noise, timesteps
+        a, b = self.return_a_b(timesteps)
+        return a * x + b * noise
+
+    def return_a_b(self, timesteps):
+        """ returns a_t and b_t so that 
+        x_t = a_t * x_1 + b_t * noise
+        """
         raise NotImplementedError
+        
 
 class RectifiedFlowNoise(DiffusionTrainingNoiser):
     def apply_noise(self, x, noise, timesteps):
@@ -46,21 +53,29 @@ class RectifiedFlowNoise(DiffusionTrainingNoiser):
         """convert epsilon to v"""
         return x - epsilon
 
+    def return_a_b(self, timesteps):
+        return 1 - timesteps, timesteps
+
 class ExplodingNoise(DiffusionTrainingNoiser):
     def _compute_b_t(self, timesteps):
         return torch.exp(timesteps)
+    def return_a_b(self, timesteps):
+        return 1, self._compute_b_t(timesteps)
 
-    def apply_noise(self, x, noise, timesteps):
-        b_t = self._compute_b_t(timesteps)
-
-        return x + b_t * noise
+    # def apply_noise(self, x, noise, timesteps):
+    #     b_t = self._compute_b_t(timesteps)
+    #
+    #     return x + b_t * noise
 
 class DDPMCosineNoise(DiffusionTrainingNoiser):
-    def apply_noise(self, x, noise, timesteps):
+    def return_a_b(self, timesteps):
         with torch.no_grad():
             sqrt_alpha_t = torch.cos(timesteps * torch.pi / 2)
             sqrt_1_alpha_t = torch.sin(timesteps * torch.pi / 2)
-        return sqrt_alpha_t * x + sqrt_1_alpha_t * noise
+        return sqrt_alpha_t, sqrt_1_alpha_t
+
+    # def apply_noise(self, x, noise, timesteps):
+    #     return sqrt_alpha_t * x + sqrt_1_alpha_t * noise
 
 
 class DiffusionTrainingHelperMixin():
@@ -110,13 +125,15 @@ class DiffusionTrainingHelperMixin():
 
     def get_training_objective(self, x, noise, noised_x):
         """return the target value for the model. May be the noise, 
-        the v value or the x value"""
+        the v (velocity) value or the x value"""
         match self._diff_train_prediction_type:
             case "noise":
                 return noise
             case "v":
                 warnings.warn("Using v as training target, not sure if this is correct")
                 return x - noised_x
+            case "original":
+                return x
             case _:
                 raise ValueError(f"Unknown prediction type {self._diff_train_prediction_type}")
 
@@ -132,6 +149,24 @@ class DiffusionTrainingHelperMixin():
         """apply noise to the input point. Reimplement this method in the child class if needed"""
         return self._noiser.apply_noise(x, noise, timesteps)
 
+
+    def epsilon_to_x0(self, x, epsilon, t):
+        """converts predicted noise value to predicted x_0 value
+        assuming x = a_t * x_0 + b_t * noise
+        we want x_0 = (x - b_t * noise) / a_t
+        """
+        a_t, b_t = self._noiser.return_a_b(t)
+        return (x - b_t * epsilon) / a_t
+
+    def epsilon_to_v(self, x, epsilon, t):
+        """converts predicted noise value to predicted velocity value
+        assuming x = a_t * x_1 + b_t * noise
+        we want v =  x_1 - x 
+        ie v = (x (1 - a_t) - b_t * noise) / a_t
+        """
+        return self.epsilon_to_x0(x, epsilon, t) - x
+
+        
 
         
         
