@@ -36,7 +36,7 @@ def betas_from_alpha_bars(alpha_bars, clip= .999):
 class DiffusionTrainingNoiser():
     def apply_noise(self, x, noise, timesteps):
         a, b = self.return_a_b(timesteps)
-        return a * x + b * noise
+        return a[:, None] * x + b[:, None] * noise
 
     def return_a_b(self, timesteps):
         """ returns a_t and b_t so that 
@@ -46,9 +46,6 @@ class DiffusionTrainingNoiser():
         
 
 class RectifiedFlowNoise(DiffusionTrainingNoiser):
-    def apply_noise(self, x, noise, timesteps):
-        return (1 - timesteps) * x + timesteps * noise
-
     def epsilon_to_v(self, x, epsilon):
         """convert epsilon to v"""
         return x - epsilon
@@ -156,7 +153,7 @@ class DiffusionTrainingHelperMixin():
         we want x_0 = (x - b_t * noise) / a_t
         """
         a_t, b_t = self._noiser.return_a_b(t)
-        return (x - b_t * epsilon) / a_t
+        return (x - b_t[:, None] * epsilon) / a_t[:, None]
 
     def epsilon_to_v(self, x, epsilon, t):
         """converts predicted noise value to predicted velocity value
