@@ -250,6 +250,10 @@ class ScopedEnvironment():
         scope = self.scope + scope
         self.environment.record(key, value, scope)
 
+    def record_dict(self, d: dict, scope: Scope = ()):
+        scope = self.scope + scope
+        self.environment.record_dict(d, scope)
+
     def get(self, key:str, scope: Scope=()):
         scope = self.scope + scope
         return self.environment.get(key, scope)
