@@ -59,6 +59,13 @@ class Training_parameters(BaseModel):
     performance_tricks: bool = True
     """enables various optimizations. Set to false to help debugging"""
 
+    no_optimizer_hook: bool = False
+    """if True, the trainer will not run the optimizer hook. 
+    Useful if the model runs the optimizer manually (eg. in the do_step method)
+    Note that an optimizer will still be created, and can be accessed in the environment 
+    as "env.optim"
+    """
+
     checkpoint_interval: int = 10000
     database_commit_interval: int = 100
 
@@ -181,7 +188,8 @@ class Trainer():
                                                  training_parameters.optimizer_arguments, 
                                                  clip_grad_norm=training_parameters.clip_grad_norm, 
                                                  fake_batch_size=training_parameters.fake_batch_size)
-        additional_step_hooks.append(optimizer_hook)
+        if not training_parameters.no_optimizer_hook:
+            additional_step_hooks.append(optimizer_hook)
 
         ############### Database stuff
         self.database_session=database
