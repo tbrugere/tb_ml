@@ -156,8 +156,8 @@ class DiffusionTrainingHelperMixin():
     @torch.no_grad()
     def apply_noise(self, x, noise, timesteps):
         """apply noise to the input point"""
-        if self._integer_timesteps: torch.is_floating_point(timesteps)
-        timesteps = timesteps[..., None].expand_as(x)
+        if not self._integer_timesteps: assert torch.is_floating_point(timesteps)
+        # timesteps = timesteps[..., None].expand_as(x)
         return self._apply_noise(x, noise, timesteps)
 
     def _apply_noise(self, x, noise, timesteps):
