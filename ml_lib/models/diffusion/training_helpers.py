@@ -4,7 +4,7 @@ import warnings
 
 Timestep_sampling_method: TypeAlias = Literal["uniform", "logit_normal"]
 
-PredictionType: TypeAlias = Literal["v", "noise"]
+PredictionType: TypeAlias = Literal["v", "noise", "original"]
 
 ############### functions directly stolen from 
 ############### Ting Chen - on the importance of noise scheduling for diffusion models
@@ -46,6 +46,9 @@ class DiffusionTrainingNoiser():
         
 
 class RectifiedFlowNoise(DiffusionTrainingNoiser):
+   def apply_noise(self, x, noise, timesteps):
+        return (1 - timesteps[:, None]) * x + timesteps[:, None] * noise
+
     def epsilon_to_v(self, x, epsilon):
         """convert epsilon to v"""
         return x - epsilon
@@ -134,6 +137,21 @@ class DiffusionTrainingHelperMixin():
             case _:
                 raise ValueError(f"Unknown prediction type {self._diff_train_prediction_type}")
 
+    def convert_prediction(self, x, prediction, t,  *, convert_from: PredictionType, 
+                           convert_to: PredictionType):
+        """converts the prediction from one type to another"""
+        if convert_from == convert_to:
+            return prediction
+        match (convert_from, convert_to):
+            case ("noise", "v"): return self.epsilon_to_v(x, prediction, t)
+            case ("noise", "original"): return self.epsilon_to_x0(x, prediction, t)
+            case ("v", "noise"): return self.v_to_epsilon(x, prediction, t)
+            case ("v", "original"): return x + prediction
+            case ("original", "noise"): return self.x0_to_epsilon(x, prediction, t)
+            case ("original", "v"): return prediction - x
+            case _:
+                raise ValueError(f"Cannot convert from {convert_from} to {convert_to}")
+
     
     @torch.no_grad()
     def apply_noise(self, x, noise, timesteps):
@@ -163,7 +181,14 @@ class DiffusionTrainingHelperMixin():
         """
         return self.epsilon_to_x0(x, epsilon, t) - x
 
-        
+    def x0_to_epsilon(self, x, x0, t):
+        """
+        x = a_t * x_0 + b_t * noise
+        noise = (x - a_t * x_0) / b_t
+        """
+        a_t, b_t = self._noiser.return_a_b(t)
+        return (x - a_t[:, None] * x0) / b_t[:, None]
 
-        
-        
+    def v_to_epsilon(self, x, v, t):
+        """converts velocity to noise value"""
+        return self.x0_to_epsilon(x, x + v, t)
