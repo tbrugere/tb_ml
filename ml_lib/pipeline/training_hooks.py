@@ -321,6 +321,8 @@ class DatabaseHook(EndAndStepHook):
 
     checkpoint_interval: int
     commit_interval: int
+    max_n_checkpoints: int|None = None
+    keep_intermediate_checkpoints: bool = True
 
     loss_name: str = "loss"
     metrics: list[str] 
@@ -411,6 +413,7 @@ class DatabaseHook(EndAndStepHook):
             )
         self.cache.add(training_step)
 
+    def cleanup_checkpoints(self)
 
     def handle_failure_to_commit(self, training_finished):
         if training_finished:
@@ -545,9 +548,9 @@ class TrelloHook(EndHook):
 
         model_description= (
                 "## Model parameters\n\n"
-                f"```python\n{str(model)}```\n\n"
+                f"```python\n{str(model)}\n```\n\n"
                 "## Training parameters\n\n"
-                f"```python{str(training_parameters)}```"
+                f"```python\n{str(training_parameters)}\n```"
         )
         if ongoing: l = self.ongoing_list
         else: l = self.finished_list
