@@ -1,9 +1,11 @@
 from typing import Callable, ClassVar, Any, Self
 from dataclasses import dataclass, field as dataclass_field
+import warnings
 
 import torch
 from torch import Tensor
 import torch.nn.functional as F
+import torch.serialization
 
 from ml_lib.misc import all_equal
 from ml_lib.misc.torch_functions import broadcastable
@@ -191,3 +193,11 @@ class FeatureSpecification(LoadableMixin):
         # auto conversion to int. can be useful
         return self.dim
 
+if hasattr(torch.serialization, "add_safe_globals"):
+    torch.serialization.add_safe_globals([FeatureSpecification, 
+                                          FeatureType, 
+                                         MSEFeature, 
+                                         OneHotFeature, 
+                                         BinaryFeature])
+else: 
+    warnings.warn("Couldn't add FeatureSpecification to safe globals, you may have trouble loading models")
