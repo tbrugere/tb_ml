@@ -413,7 +413,8 @@ class DatabaseHook(EndAndStepHook):
             )
         self.cache.add(training_step)
 
-    def cleanup_checkpoints(self)
+    def cleanup_checkpoints(self):
+        raise NotImplementedError
 
     def handle_failure_to_commit(self, training_finished):
         if training_finished:
@@ -550,7 +551,7 @@ class TrelloHook(EndHook):
                 "## Model parameters\n\n"
                 f"```python\n{str(model)}\n```\n\n"
                 "## Training parameters\n\n"
-                f"```python\n{str(training_parameters)}\n```"
+                f"```python\n{str(training_parameters)}\n```\n"
         )
         if ongoing: l = self.ongoing_list
         else: l = self.finished_list
