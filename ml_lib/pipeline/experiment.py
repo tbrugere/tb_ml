@@ -25,7 +25,7 @@ class ModelConfig(BaseModel):
     name: str = Field()
     params: dict[str, Any] = Field(default={})
     training_parameters: Training_parameters = Field(
-            default=lambda: Training_parameters(n_epochs=1))
+            default_factory=lambda: Training_parameters(n_epochs=1))
     testing_parameters: dict[str, Any] = Field(default_factory=dict)
     training_set: str = "train"
     testing_set: str = "test"
