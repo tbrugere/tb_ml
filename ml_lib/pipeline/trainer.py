@@ -1,25 +1,27 @@
 import functools as ft
 from collections.abc import Sequence
+import contextlib
 from typing import Iterator, Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
 from ml_lib.datasets.base_classes import Transform
 from pydantic import BaseModel, Field, ConfigDict
 
-from logging import getLogger; log = getLogger(__name__)
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session as DBSession
-    from .experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
 
 import torch
 from torch.utils.data import DataLoader
 
-from ml_lib.misc.torch_functions import move_batch_to
+from ml_lib.misc.torch_functions import move_batch_to, precision_of_string
 from ..models.base_classes import Model
 from ..datasets import Dataset, Transform
 from .training_hooks import TrainingHook, OptimizerHook, LRSchedulerHook, DatabaseHook
 from ..environment import Environment, HierarchicEnvironment
 from ..register import Loader
 from .registers import loss_register, training_hook_register
+
+from logging import getLogger; log = getLogger(__name__)
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session as DBSession
+    from .experiment_tracking import Training_run as DBTraining_run, Experiment as DBExperiment, Training_step as DBTraining_step
 
 def try_tqdm(total: int, desc:str):
     try: from tqdm.auto import tqdm
@@ -45,6 +47,9 @@ class Training_parameters(BaseModel):
     
     """Gradient clipping. Default is 1, can be set to None to disable it"""
     clip_grad_norm: float|None = 1.
+
+    """can be float32, float64, bfloat16... or "mixed" to use  torch.autocast"""
+    precision: str|None = None 
 
     """"""
 
@@ -152,7 +157,7 @@ class Trainer():
         match data:
             case DataLoader():
                 if training_parameters.train_transforms:
-                    log.warn("Transforms provided, but data is already a DataLoader, ignoring transforms")
+                    log.warning("Transforms provided, but data is already a DataLoader, ignoring transforms")
                 pass
             case Dataset():
                 data = self.get_dataloader(data)
@@ -173,7 +178,7 @@ class Trainer():
         self.iter_env = HierarchicEnvironment(parent=self.epoch_env)
 
         ################ Actual training stuff
-        self.model = model.to(device)
+        self.model = model.to(device, dtype=self.get_dtype())
         if training_parameters.loss is None:
             self.loss = None
         else:
@@ -266,6 +271,7 @@ class Trainer():
         self.model.set_environment(self.iter_env)
 
         batch = move_batch_to(batch, self.device, 
+                              dtype=self.get_dtype(),
                     non_blocking=self.training_parameters.performance_tricks)
         match batch:
             case dict():
@@ -281,12 +287,13 @@ class Trainer():
                 self.iter_env.record("x", batch)
         self.iter_env.record("batch", batch)
 
-        if self.model.do_step is not None:
-            self.iter_env.run_function(self.model.do_step)
-        else:
-            loss = self.iter_env.run_function(self.model.compute_loss, 
-                                              record_result_as="loss")
-            loss.backward()
+        with self.step_context():
+            if self.model.do_step is not None:
+                self.iter_env.run_function(self.model.do_step)
+            else:
+                loss = self.iter_env.run_function(self.model.compute_loss, 
+                                                  record_result_as="loss")
+                loss.backward()
         
         for hook in self.step_hooks:
             hook.set_environment(self.iter_env)
@@ -345,11 +352,11 @@ class Trainer():
         assert self.database_session is not None, "cannot load checkpoint with no database session"
         checkpoint = Checkpoint.from_descriptor_string(checkpoint_str, self.database_session)
         if checkpoint is None: 
-            log.warn(f'Could not load checkpoint "{checkpoint_str}": not found')
+            log.warning(f'Could not load checkpoint "{checkpoint_str}": not found')
             return
         log.info(f"restarting from checkpoint of model {checkpoint.model.name} at step {checkpoint.step.step}")
         if not checkpoint.is_last:
-            log.warn(f"Restarting from a non-final checkpoint!")
+            log.warning("Restarting from a non-final checkpoint!")
         self.model.load_checkpoint(checkpoint.checkpoint)
 
     def resume(self, step: "int|DBTraining_step|None"):
@@ -361,17 +368,17 @@ class Trainer():
         if step is None:
             checkpoint = db_trainingrun.last_checkpoint()
             if checkpoint is None:
-                log.warn("tried to resume, but did not find a checkpoint")
+                log.warning("tried to resume, but did not find a checkpoint")
                 return
         else: 
             step_num = step.step if isinstance(step, DBTraining_step) else step
             checkpoint = db_trainingrun.last_checkpoint(max_step_n=step_num)
             if checkpoint is None:
-                log.warn("tried to resume, but did not find a checkpoint")
+                log.warning("tried to resume, but did not find a checkpoint")
                 return
             if checkpoint.step.step < step_num:
-                log.warn(f"asked to resume from step {step_num}, but no checkpoint was found for that step")
-                log.warn(f"using that from  {checkpoint.step.step} instead")
+                log.warning(f"asked to resume from step {step_num}, but no checkpoint was found for that step")
+                log.warning(f"using that from  {checkpoint.step.step} instead")
         log.info(f"resuming from step {checkpoint.step.step}") 
         self.model.load_checkpoint(checkpoint.checkpoint)
         step_num = checkpoint.step.step + 1# we saved *after* step step_num, so we restart at step_num + 1
@@ -406,6 +413,24 @@ class Trainer():
         self.iter_env.reset()
         gc.collect()
         torch.cuda.empty_cache()
+
+    def get_dtype(self):
+        precision = self.training_parameters.precision
+        if precision is not None and precision != "mixed":
+            return precision_of_string(precision)
+        else: return None
+
+    @contextlib.contextmanager
+    def step_context(self):
+        """Enters the various context managers we might want to run a step in
+
+        For now this is only :func:`torch.autocast` if the precision is set to "mixed"
+        """
+        with contextlib.ExitStack() as stack:
+            if self.training_parameters.precision == "mixed":
+                from torch import autocast
+                stack.enter_context(autocast(device_type=self.device.type))
+            yield
 
     @staticmethod
     def skip_batches(skip_n_steps: int, data_iter: Iterator):

@@ -109,21 +109,22 @@ def detach_object(batch, ignore_failure=False):
             return batch
 
 
-def move_batch_to(batch, device, non_blocking=False, ignore_failure=False):
+def move_batch_to(batch, device, dtype=None, non_blocking=False, ignore_failure=False):
+    dtype_arg = {"dtype": dtype} if dtype is not None else {}
     match batch:
         case batch if hasattr(batch, "to"):
-            return batch.to(device, non_blocking=non_blocking)
+            return batch.to(device, **dtype_arg, non_blocking=non_blocking)
         case batch if hasattr(batch, "_asdict"):
             t_ = type(batch)
-            return t_(**{key: value.to(device, non_blocking=non_blocking) 
+            return t_(**{key: value.to(device, **dtype_arg, non_blocking=non_blocking) 
                          for key, value in batch._asdict().items()})
         case dict():
-            return {key: value.to(device, non_blocking=non_blocking) 
+            return {key: value.to(device, **dtype_arg, non_blocking=non_blocking) 
                     for key, value in batch.items()}
         case _ if isinstance(batch, torch.Tensor):
-            return batch.to(device, non_blocking=non_blocking)
+            return batch.to(device, **dtype_arg, non_blocking=non_blocking)
         case (*seq,):
-            return type(seq)(i.to(device, non_blocking=non_blocking) 
+            return type(seq)(i.to(device, **dtype_arg, non_blocking=non_blocking) 
                              for i in seq)
         case _ if not ignore_failure:
             raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
@@ -208,7 +209,14 @@ class ShouldBe():
 
     def __invert__(self): 
         """ so that you can write 
-            ``tensor<=~~~~~~~~~~~~~~~~~~~~~~~~Shouldbe(n, m)`` This is probably not very """
+            ``tensor<=~~~~~~~~~~~~~~~~~~~~~~~~Shouldbe(n, m)``"""
+        return self
+
+    def __neg__(self):
+        """ so that you can write  ``tensor <-----Shouldbe(n, m)`` 
+
+            A bit hacky, but it looks good
+            """
         return self
 
 
@@ -229,3 +237,18 @@ class ShouldBe():
     def __gt__(self, other):
         """called as ``tensor < ShouldBe(n, m)``"""
         return self.__ge__(other)
+
+def precision_of_string(s: str):
+    """Returns the precision of a string, i.e. the number of digits after the dot"""
+    match s:
+        case "float32":
+            return torch.float32
+        case "float64":
+            return torch.float64
+        case "float16":
+            return torch.float16
+        case "bfloat16":
+            return torch.bfloat16
+        case _:
+            raise ValueError(f"Unknown precision {s}")
+
