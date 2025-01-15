@@ -313,7 +313,7 @@ class Trainer():
         ))
         self.model.set_environment(self.epoch_env)
 
-        data_iter = iter(enumerate(self.data))
+        data_iter = self.data_iter()
 
         if self.skip_n_datapoints is not None:
             self.skip_batches(self.skip_n_datapoints, data_iter)
