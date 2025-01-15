@@ -1,6 +1,7 @@
 import functools as ft
 from collections.abc import Sequence
 import contextlib
+import time
 from typing import Iterator, Type, Any, Union, Optional, Callable, TYPE_CHECKING, assert_never
 from ml_lib.datasets.base_classes import Transform
 from pydantic import BaseModel, Field, ConfigDict
@@ -63,6 +64,10 @@ class Training_parameters(BaseModel):
 
     performance_tricks: bool = True
     """enables various optimizations. Set to false to help debugging"""
+
+    num_workers: int = 10
+    """number of workers for the DataLoader. 
+    Only used if performance_tricks is True, ignored otherwise"""
 
     no_optimizer_hook: bool = False
     """if True, the trainer will not run the optimizer hook. 
@@ -515,6 +520,19 @@ class Trainer():
             shuffle=True,
             pin_memory= self.training_parameters.performance_tricks 
                             and self.device.type == "cuda", 
-            num_workers=5 if self.training_parameters.performance_tricks else 0,
+            num_workers=self.training_parameters.num_workers if self.training_parameters.performance_tricks else 0,
+            persistent_workers=self.training_parameters.performance_tricks,
             )
+
+    def data_iter(self):
+        batch_feed_timer = time.perf_counter()
+        for batch_idx, batch in enumerate(self.data):
+            time_delta = time.perf_counter() - batch_feed_timer
+            if time_delta > .05:
+                log.warning(f"waited {time_delta:.2f}s for batch {batch_idx}")
+
+            yield batch_idx, batch
+
+            batch_feed_timer = time.perf_counter()
+
 
