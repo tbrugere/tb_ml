@@ -126,6 +126,7 @@ def move_batch_to(batch, device, dtype=None, non_blocking=False, ignore_failure=
         case (*seq,):
             return type(seq)(i.to(device, **dtype_arg, non_blocking=non_blocking) 
                              for i in seq)
+        case None: return None
         case _ if not ignore_failure:
             raise ValueError(f"Couldn't find how to move object {batch} to device {device}")
 
