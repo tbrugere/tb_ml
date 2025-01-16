@@ -143,6 +143,7 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
 
     predict: Optional[Callable] = None
     sample: Optional[Callable] = None
+    do_warmup: Optional[Callable[..., None]] = None
     do_training: Optional[Callable[..., None]] = None
     do_epoch: Optional[Callable[..., None]] = None
     do_step: Optional[Callable[..., None]] = None
@@ -458,6 +459,14 @@ class Model(nn.Module, HasEnvironmentMixin, HasLossMixin[LossParameters],
     Capabilities
     ------------
     """
+
+    def has_warmup_function(self):
+        """returns True if the model has a `do_warmup` function
+        This function will be called at the start of the training if available.
+        Contrary to the do_pretraining function, it will be called even if 
+        restarting the training from a checkpoint
+        """
+        return self.do_warmup is not None
 
     def has_pretraining_function(self):
         """returns True if the model has a `do_pretraining` function

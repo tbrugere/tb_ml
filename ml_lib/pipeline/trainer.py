@@ -332,6 +332,11 @@ class Trainer():
         model = self.model
         model.set_environment(self.global_env)
         log.info(f"Training model {model.model_name}")
+        if model.do_warmup is not None:
+            log.info(f"Model {model} has do_warmup method, launching")
+            assert callable(model.do_warmup), "model do_warmup is not callable!"
+            self.global_env.run_function(model.do_warmup)
+
         if model.do_pretraining is not None:
             log.info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
