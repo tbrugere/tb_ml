@@ -32,9 +32,10 @@ class Datapoint():
             setattr(self, name, value)
 
     def pin_memory(self):
-        for value in self.asdict().values():
+        for attr, value in self.asdict().items():
             if hasattr(value, "pin_memory"):
-                value.pin_memory()
+                setattr(self, attr, value.pin_memory())
+        return self
         
 
 
@@ -69,3 +70,8 @@ class DictDatapoint(Datapoint):
 
     def __setstate__(self, d):
         self.data = d
+
+    def pin_memory(self):
+        new_data = {name: value.pin_memory() for name, value in self.data.items()}
+        self.__setstate__(new_data)
+        return self
