@@ -337,7 +337,7 @@ class Trainer():
             assert callable(model.do_warmup), "model do_warmup is not callable!"
             self.global_env.run_function(model.do_warmup)
 
-        if model.do_pretraining is not None:
+        if model.do_pretraining is not None and self.iteration_n == 0:
             log.info(f"Model {model} has do_pretraining method, launching")
             assert callable(model.do_pretraining), "model do_pretraining is not callable!"
             self.global_env.run_function(model.do_pretraining)
