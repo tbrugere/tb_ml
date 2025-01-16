@@ -30,6 +30,11 @@ class Datapoint():
     def __setstate__(self, d):
         for name, value in d.items():
             setattr(self, name, value)
+
+    def pin_memory(self):
+        for value in self.asdict().values():
+            if hasattr(value, "pin_memory"):
+                value.pin_memory()
         
 
 
