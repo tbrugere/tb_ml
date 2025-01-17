@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from ml_lib.misc.torch_functions import move_batch_to, precision_of_string
+from ml_lib.datasets.utils import MultiEpochDataLoader
 from ..models.base_classes import Model
 from ..datasets import Dataset, Transform
 from .training_hooks import TrainingHook, OptimizerHook, LRSchedulerHook, DatabaseHook
@@ -518,7 +519,10 @@ class Trainer():
     def get_dataloader(self, dataset: Dataset):
         if self.training_parameters.train_transforms:
             dataset = dataset.apply_transforms(self.training_parameters.train_transforms)
-        return DataLoader(
+        if self.training_parameters.performance_tricks:
+            data_loader_type = MultiEpochDataLoader
+        else: data_loader_type = DataLoader
+        return data_loader_type(
             dataset, 
             batch_size=self.training_parameters.batch_size, 
             collate_fn=dataset.collate, 
