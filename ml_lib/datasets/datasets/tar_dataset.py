@@ -1,7 +1,9 @@
 from typing import TypeVar, IO, ClassVar
 from os import PathLike
+from pathlib import Path
 import tarfile
 import yaml
+import zipfile
 from torch.utils.data import get_worker_info
 
 from ..base_classes import Dataset
@@ -11,6 +13,9 @@ from ..registration import register
 
 
 PointType = TypeVar("PointType", bound=Datapoint)
+
+class DataReadingError(Exception):
+    pass
 
 class TarDataset(Dataset[PointType]):
     """
@@ -43,6 +48,12 @@ class TarDataset(Dataset[PointType]):
     # but i think some workers are created by forking
     _file: dict[None|int, tarfile.TarFile] 
 
+    # Tarfiles do not have an index, 
+    # so if we do the naive thing, we end up going through the whole file every time
+    # we need to pull up a datapoint
+    # instead we keep an index of TarInfo objects (which include the offset)
+    _index: dict[str, tarfile.TarInfo]
+
     metadata: dict
 
     def __init__(self, tar_file: PathLike):
@@ -50,6 +61,9 @@ class TarDataset(Dataset[PointType]):
         self._file = {}
         file = self.tar_file # actually initializes the _file
         members_list = file.getnames()
+        self._index = {
+                member.name: member for member in file.getmembers()
+            }
         if self.metadata_file in members_list:
             members_list = [member for member in members_list 
                             if member != self.metadata_file]
@@ -62,11 +76,19 @@ class TarDataset(Dataset[PointType]):
 
     def __getitem__(self, i):
         member_name = self.members_list[i]
+        member = self._index[member_name]
         file = self.tar_file
-        reader = file.extractfile(member_name)
+        reader = file.extractfile(member)
         if reader is None:
             raise ValueError(f"member {member_name} in file {self.file_path} is not a file or a link. This is unsupported.")
-        return self.read_element(reader)
+        try:
+            reader.seek(0)
+            return self.read_element(reader)
+        except zipfile.BadZipFile as e:
+            reader.seek(0)
+            data = reader.read()
+            Path("/tmp/file_error").write_bytes(data)
+            raise DataReadingError(f"while trying to read {file}, content written to /tmp/file_error") from e
 
     def __len__(self):
         return len(self.members_list)
@@ -96,12 +118,14 @@ class TarDataset(Dataset[PointType]):
 
     def __getstate__(self):
         return dict(file_path=self.file_path, 
-                    members_list = self.members_list)
+                    members_list = self.members_list, 
+                    index = self._index)
 
     def __setstate__(self, d):
         self.file_path = d["file_path"]
         self.members_list = d["members_list"]
         self._file = {}
+        self._index = d["index"]
         
     def __repr__(self):
         return f"{self.__class__.__name__}({str(self.file_path)})"
