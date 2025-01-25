@@ -150,6 +150,19 @@ class TarNpzDataset(TarDataset[DictDatapoint]):
             result = {f: npz[f] for f in npz.files}
         return DictDatapoint(result)
 
+@register
+class AutoTarDataset(TarDataset):
+
+    def __init__(self, datatype: type[Datapoint], tar_file: PathLike):
+        self.datatype = datatype
+        super().__init__(tar_file)
+
+    def read_element(self, file: IO[bytes]):
+        import numpy as np
+        with np.load(file) as npz:
+            result = {f: npz[f] for f in npz.files}
+        return self.datatype(**result)
+
 
 class TarTorchDataset(TarDataset[DictDatapoint]):
     """
