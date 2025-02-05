@@ -175,3 +175,26 @@ class UnionFindNoCompression(list):
         if p == k:
             return
         self.reroot(p, _previous=k)
+
+def check_parameters(required, provided, 
+                     missing_message="missing parameters",
+                     extra_message="extra parameters", 
+                     wrong_message="wrong parameters"):
+    from ml_lib.misc.matchers import EmptySet
+    required = set(required)
+    provided = set(provided)
+
+    match (required-provided, provided-required):
+        case EmptySet(), EmptySet():
+            pass
+        case _, EmptySet() if allow_missing:
+            pass
+        case missing, EmptySet():
+            raise ValueError(f"{missing_message} : {missing}")
+        case EmptySet(), unknown:
+            raise ValueError(f"{extra_message}: {unknown}")
+        case _, _:
+            raise ValueError(f"{wrong_message}: \n"
+                             f"expected: {required}\n"
+                             f"provided (including defaults and inferred: {provided})"                                 )
+
