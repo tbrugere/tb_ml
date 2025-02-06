@@ -166,8 +166,10 @@ class AutoTarDataset(TarDataset):
 
     def read_element(self, file: IO[bytes]):
         import numpy as np
+        import torch
         with np.load(file) as npz:
-            result = {f: npz[f] for f in npz.files}
+            result = {f: torch.as_tensor(npz[f]) 
+                      for f in npz.files}
         return self.datatype(**result)
 
     @classmethod
