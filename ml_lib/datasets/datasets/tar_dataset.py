@@ -1,4 +1,5 @@
 from typing import TypeVar, IO, ClassVar
+import io
 from os import PathLike
 from pathlib import Path
 import tarfile
@@ -150,6 +151,12 @@ class TarNpzDataset(TarDataset[DictDatapoint]):
             result = {f: npz[f] for f in npz.files}
         return DictDatapoint(result)
 
+def add_file_to_tarfile(file, bytes_io, tar_filename):
+    tar_fileinfo = tarfile.TarInfo(name=tar_filename)
+    tar_fileinfo.size = bytes_io.getbuffer().nbytes
+    bytes_io.seek(0)
+    file.addfile(tar_fileinfo, bytes_io)
+
 @register
 class AutoTarDataset(TarDataset):
 
@@ -162,6 +169,23 @@ class AutoTarDataset(TarDataset):
         with np.load(file) as npz:
             result = {f: npz[f] for f in npz.files}
         return self.datatype(**result)
+
+    @classmethod
+    def save_dataset(cls, tar_file: PathLike, dataset: Dataset):
+        import numpy as np
+        from math import log10, ceil
+
+        n_digits = int(ceil(log10(len(dataset))))
+        with tarfile.open(tar_file, "w") as tar:
+            for i, point in enumerate(dataset):
+                tar_filename = f"{i:0{n_digits}d}.npz"
+                bytes_io = io.BytesIO()
+                np.savez(bytes_io, **point.asdict())
+                add_file_to_tarfile(tar, bytes_io, tar_filename)
+            metadata = dataset.dataset_parameters()
+            metadata_file = io.BytesIO(yaml.dump(metadata).encode())
+            add_file_to_tarfile(tar, metadata_file, cls.metadata_file)
+
 
 
 class TarTorchDataset(TarDataset[DictDatapoint]):
